@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import IncomeDetails from "./pages/IncomeDetails";
 import ExpenseDetails from "./pages/ExpenseDetails";
 import BalanceDetails from "./pages/BalanceDetails";
+import CategoryManagement from "./pages/CategoryManagement";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <BalanceDetails />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/categories" 
+              element={
+                <ProtectedRoute>
+                  <CategoryManagement />
                 </ProtectedRoute>
               } 
             />

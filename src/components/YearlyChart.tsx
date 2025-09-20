@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BarChart3, RefreshCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Calendar, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -16,8 +17,15 @@ interface MonthlyData {
 export const YearlyChart = () => {
   const { user } = useAuth();
   const [data, setData] = useState<MonthlyData[]>([]);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    fetchYearlyData();
+    setTimeout(() => setRefreshing(false), 1000);
+  };
 
   useEffect(() => {
     if (user) {
@@ -83,12 +91,20 @@ export const YearlyChart = () => {
   return (
     <Card className="shadow-card">
       <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            연간 수입/지출 현황
-          </CardTitle>
-        </div>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            {selectedYear}년 월별 현황
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardTitle>
         <Select
           value={selectedYear.toString()}
           onValueChange={(value) => setSelectedYear(Number(value))}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar, Tag } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
@@ -284,11 +284,6 @@ export const Dashboard = () => {
               <div className="flex items-center gap-4 flex-wrap">
                 <p className="text-muted-foreground">
                   {selectedYear}년 {selectedMonth}월 재무현황
-                  {!isMaster && (
-                    <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                      본인 데이터만 표시
-                    </span>
-                  )}
                 </p>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -328,6 +323,14 @@ export const Dashboard = () => {
                 </div>
               </div>
             </div>
+            <Button 
+              onClick={() => navigate('/categories')} 
+              variant="outline"
+              className="w-full"
+            >
+              <Tag className="h-4 w-4 mr-2" />
+              카테고리 관리
+            </Button>
             <TransactionForm onTransactionAdded={fetchMonthlyData} />
           </div>
 

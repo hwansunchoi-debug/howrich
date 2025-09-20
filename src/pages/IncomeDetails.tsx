@@ -19,6 +19,7 @@ interface Transaction {
   date: string;
   description: string;
   amount: number;
+  institution?: string;
   category?: {
     name: string;
     color: string;
@@ -295,6 +296,11 @@ export default function IncomeDetails() {
                       </div>
                       <div>
                         <p className="font-medium">{transaction.description}</p>
+                        {transaction.institution && (
+                          <p className="text-xs text-muted-foreground">
+                            {transaction.institution}
+                          </p>
+                        )}
                         {transaction.category && (
                           <Badge 
                             variant="outline" 

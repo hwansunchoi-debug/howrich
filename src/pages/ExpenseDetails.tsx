@@ -20,6 +20,7 @@ interface Transaction {
   date: string;
   description: string;
   amount: number;
+  institution?: string;
   category?: {
     id: string;
     name: string;
@@ -351,34 +352,39 @@ export default function ExpenseDetails() {
                           {formatDate(transaction.date)}
                         </p>
                       </div>
-                      <div>
-                        <p className="font-medium">{transaction.description}</p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {transaction.category && (
-                            <Badge 
-                              variant="outline" 
-                              className="mt-1"
-                              style={{ 
-                                borderColor: transaction.category.color,
-                                color: transaction.category.color 
-                              }}
-                            >
-                              {transaction.category.name}
-                            </Badge>
+                        <div>
+                          <p className="font-medium">{transaction.description}</p>
+                          {transaction.institution && (
+                            <p className="text-xs text-muted-foreground">
+                              {transaction.institution}
+                            </p>
                           )}
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingTransaction(transaction);
-                                  setSelectedCategoryId(transaction.category_id || '');
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {transaction.category && (
+                              <Badge 
+                                variant="outline" 
+                                className="mt-1"
+                                style={{ 
+                                  borderColor: transaction.category.color,
+                                  color: transaction.category.color 
                                 }}
                               >
-                                <Edit2 className="h-3 w-3" />
-                              </Button>
-                            </DialogTrigger>
+                                {transaction.category.name}
+                              </Badge>
+                            )}
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingTransaction(transaction);
+                                    setSelectedCategoryId(transaction.category_id || '');
+                                  }}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
                               <DialogHeader>
                                 <DialogTitle>카테고리 수정</DialogTitle>

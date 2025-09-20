@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingUp, Calendar, RefreshCw } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { TrendingUp, Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -15,6 +16,13 @@ export const AssetTrendChart = () => {
   const { user } = useAuth();
   const [data, setData] = useState<AssetData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    fetchAssetTrend();
+    setTimeout(() => setRefreshing(false), 1000);
+  };
 
   useEffect(() => {
     if (user) {
@@ -25,6 +33,7 @@ export const AssetTrendChart = () => {
   const fetchAssetTrend = async () => {
     if (!user) return;
 
+    setLoading(true);
     try {
       const { data: snapshots, error } = await supabase
         .from('balance_snapshots')
@@ -65,10 +74,20 @@ export const AssetTrendChart = () => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             자산 변동 추이
-          </CardTitle>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[200px]">
@@ -105,9 +124,19 @@ export const AssetTrendChart = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5" />
-          자산 변동 추이
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            자산 변동 추이
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent>

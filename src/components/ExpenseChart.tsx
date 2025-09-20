@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TrendingDown, RefreshCw } from "lucide-react";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +19,17 @@ interface ExpenseChartProps {
 export const ExpenseChart = ({ onDataRefresh }: ExpenseChartProps) => {
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (onDataRefresh) {
+      await onDataRefresh();
+    }
+    // 차트 데이터도 새로고침
+    fetchExpenseData();
+    setTimeout(() => setRefreshing(false), 1000);
+  };
 
   useEffect(() => {
     fetchExpenseData();
@@ -88,7 +101,17 @@ export const ExpenseChart = ({ onDataRefresh }: ExpenseChartProps) => {
   return (
     <Card className="shadow-card">
       <CardHeader className="pb-2">
-        <CardTitle>이번 달 카테고리별 지출</CardTitle>
+        <CardTitle className="flex items-center justify-between">
+          <span>이번 달 카테고리별 지출</span>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+        </CardTitle>
         <CardDescription>
           지출 내역을 카테고리별로 분석
         </CardDescription>
