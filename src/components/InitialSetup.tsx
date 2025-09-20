@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Calendar as CalendarIcon,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -51,9 +52,10 @@ interface SystemStats {
 
 interface InitialSetupProps {
   onComplete?: () => void;
+  onBack?: () => void;
 }
 
-export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
+export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete, onBack }) => {
   const { user } = useAuth();
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [stats, setStats] = useState<SystemStats>({
@@ -289,11 +291,18 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
       <div className="border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">초기 설정 및 데이터 관리</h1>
-              <p className="text-muted-foreground mt-2">
-                과거 거래내역 업로드 및 시스템 현황을 관리합니다
-              </p>
+            <div className="flex items-center gap-4">
+              {onBack && (
+                <Button variant="ghost" size="icon" onClick={onBack}>
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              )}
+              <div>
+                <h1 className="text-3xl font-bold">초기 설정 및 데이터 관리</h1>
+                <p className="text-muted-foreground mt-2">
+                  과거 거래내역 업로드 및 시스템 현황을 관리합니다
+                </p>
+              </div>
             </div>
             
             {setupCompleted ? (

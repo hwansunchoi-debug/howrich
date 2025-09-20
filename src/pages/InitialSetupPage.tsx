@@ -9,5 +9,10 @@ export default function InitialSetupPage() {
     navigate('/', { replace: true });
   };
 
-  return <InitialSetup onComplete={handleComplete} />;
+  const handleBack = () => {
+    // 뒤로가기 - 메인화면으로 이동
+    navigate('/', { replace: true });
+  };
+
+  return <InitialSetup onComplete={handleComplete} onBack={handleBack} />;
 }
