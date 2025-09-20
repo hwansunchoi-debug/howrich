@@ -9,6 +9,7 @@ import { CSVParser } from '@/services/csvParser';
 import { CSVMappingDialog } from './CSVMappingDialog';
 import { BankTemplate } from '@/services/bankTemplates';
 import { toast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 interface TransactionUploadProps {
   onComplete: () => void;
@@ -28,11 +29,14 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type !== 'text/csv' && !selectedFile.name.endsWith('.csv')) {
+      const isCSV = selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv');
+      const isXLSX = selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || selectedFile.name.endsWith('.xlsx');
+      
+      if (!isCSV && !isXLSX) {
         toast({
           variant: "destructive",
           title: "잘못된 파일 형식",
-          description: "CSV 파일만 업로드 가능합니다."
+          description: "CSV 또는 XLSX 파일만 업로드 가능합니다."
         });
         return;
       }
@@ -45,41 +49,57 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
     if (!file) return;
 
     try {
-      // CSV 파일을 읽어서 파싱
-      const text = await file.text();
-      const lines = text.split('\n').filter(line => line.trim());
+      let parsedData: string[][] = [];
       
-      if (lines.length === 0) {
+      const isXLSX = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.name.endsWith('.xlsx');
+      
+      if (isXLSX) {
+        // XLSX 파일 처리
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        // 시트를 배열로 변환
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        parsedData = jsonData.map(row => (row as any[]).map(cell => String(cell || '')));
+      } else {
+        // CSV 파일 처리
+        const text = await file.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        // CSV 데이터를 파싱 (쉼표로 분리)
+        parsedData = lines.map(line => {
+          const columns: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if ((char === ',' || char === '\t') && !inQuotes) {
+              columns.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          
+          columns.push(current.trim());
+          return columns.map(col => col.replace(/^"|"$/g, '')); // 따옴표 제거
+        });
+      }
+      
+      if (parsedData.length === 0) {
         toast({
           variant: "destructive",
           title: "빈 파일",
-          description: "CSV 파일에 데이터가 없습니다."
+          description: "파일에 데이터가 없습니다."
         });
         return;
       }
-
-      // CSV 데이터를 파싱 (쉼표로 분리)
-      const parsedData = lines.map(line => {
-        const columns: string[] = [];
-        let current = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if ((char === ',' || char === '\t') && !inQuotes) {
-            columns.push(current.trim());
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        
-        columns.push(current.trim());
-        return columns.map(col => col.replace(/^"|"$/g, '')); // 따옴표 제거
-      });
 
       setCsvData(parsedData);
       setShowMappingDialog(true);
@@ -152,7 +172,7 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
           과거 거래내역 업로드
         </CardTitle>
         <CardDescription>
-          금융기관에서 다운로드한 CSV 파일을 업로드하여 과거 거래내역을 일괄 등록하세요.
+          금융기관에서 다운로드한 CSV 또는 Excel(XLSX) 파일을 업로드하여 과거 거래내역을 일괄 등록하세요.
         </CardDescription>
       </CardHeader>
       
@@ -177,7 +197,7 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
           <div>
             <Input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx"
               onChange={handleFileSelect}
               disabled={isUploading}
             />
