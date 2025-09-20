@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_balances: {
+        Row: {
+          account_name: string
+          account_type: string
+          balance: number
+          created_at: string
+          id: string
+          last_updated: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          account_type: string
+          balance?: number
+          created_at?: string
+          id?: string
+          last_updated?: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_type?: string
+          balance?: number
+          created_at?: string
+          id?: string
+          last_updated?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number

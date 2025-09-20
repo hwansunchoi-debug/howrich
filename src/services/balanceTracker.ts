@@ -175,7 +175,7 @@ export class BalanceTracker {
 
     // 데이터베이스에 저장
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('account_balances')
         .upsert({
           account_name: balanceInfo.accountName,
@@ -202,7 +202,7 @@ export class BalanceTracker {
    */
   async getAllBalances(): Promise<BalanceInfo[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('account_balances')
         .select('*')
         .order('balance', { ascending: false });
@@ -212,7 +212,7 @@ export class BalanceTracker {
         return [];
       }
 
-      return (data || []).map(item => ({
+      return (data || []).map((item: any) => ({
         accountName: item.account_name,
         accountType: item.account_type,
         balance: item.balance,
