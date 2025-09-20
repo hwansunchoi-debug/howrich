@@ -52,7 +52,7 @@ export const AssetTrendChart2025Enhanced = () => {
         { id: user.id, name: '나' },
         ...(familyMembers || []).map(member => ({
           id: member.member_id,
-          name: member.display_name || member.profiles?.display_name || member.profiles?.email
+          name: member.display_name || 'Unknown'
         }))
       ];
       
@@ -128,10 +128,10 @@ export const AssetTrendChart2025Enhanced = () => {
         }, {} as Record<string, number>);
 
         const chartData = Object.entries(groupedData)
-          .filter(([_, value]) => value > 0)
+          .filter(([_, value]) => Number(value) > 0)
           .map(([name, value], index) => ({
             name,
-            value,
+            value: Number(value),
             color: COLORS[index % COLORS.length]
           }));
 

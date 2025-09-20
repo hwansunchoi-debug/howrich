@@ -54,7 +54,7 @@ export const AssetTrendChartEnhanced = ({ onDataRefresh }: AssetTrendChartEnhanc
         { id: user.id, name: '나' },
         ...(familyMembers || []).map(member => ({
           id: member.member_id,
-          name: member.display_name || member.profiles?.display_name || member.profiles?.email
+          name: member.display_name || 'Unknown'
         }))
       ];
       

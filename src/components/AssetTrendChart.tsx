@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, Calendar, RefreshCw } from "lucide-react";
+import { TrendingUp, Calendar, RefreshCw, Filter } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface AssetData {
   date: string;
@@ -14,9 +16,14 @@ interface AssetData {
 
 export const AssetTrendChart = () => {
   const { user } = useAuth();
+  const { isMaster } = useUserRole();
   const [data, setData] = useState<AssetData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userFilter, setUserFilter] = useState<string>('all');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
+  const [users, setUsers] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<string[]>([]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -49,7 +56,7 @@ export const AssetTrendChart = () => {
         { id: user.id, name: '나' },
         ...(familyMembers || []).map(member => ({
           id: member.member_id,
-          name: member.display_name || member.profiles?.display_name || member.profiles?.email
+          name: member.display_name || 'Unknown'
         }))
       ];
       
@@ -210,11 +217,11 @@ export const AssetTrendChart = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5" />
             자산 변동 추이
-          </div>
+          </CardTitle>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -223,8 +230,44 @@ export const AssetTrendChart = () => {
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
-        </CardTitle>
-      </CardHeader>
+        </div>
+        
+        {/* 필터 */}
+        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          {isMaster && (
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {users.map(user => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="계좌 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">전체 계좌</SelectItem>
+              {accounts.map(account => (
+                <SelectItem key={account} value={account}>
+                  {account}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data}>

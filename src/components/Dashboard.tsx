@@ -9,7 +9,7 @@ import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { YearlyChart } from "./YearlyChart";
 import { AssetTrendChartEnhanced } from "./AssetTrendChartEnhanced";
-import { AssetTrendChart2025 } from "./AssetTrendChart2025";
+import { AssetTrendChart2025Enhanced } from "./AssetTrendChart2025Enhanced";
 import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
 import { CategoryManagementCard } from "./CategoryManagementCard";
@@ -483,15 +483,13 @@ export const Dashboard = () => {
 
         {/* Asset Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <AssetTrendChart />
-          <AssetTrendChart2025 />
+          <AssetTrendChartEnhanced />
+          <AssetTrendChart2025Enhanced />
         </div>
 
         {/* Category Management */}
         <CategoryManagementCard />
         
-        {/* Family Asset Chart (Master Only) */}
-        {isMaster && }
 
         {/* Initial Setup Access */}
         <Card className="shadow-card">
