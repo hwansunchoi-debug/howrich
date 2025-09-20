@@ -245,7 +245,8 @@ export const AssetTrendChart2025Enhanced = () => {
         <div className="flex flex-col sm:flex-row gap-2 mt-4">
           {isMaster && (
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">사용자:</span>
               <Select value={userFilter} onValueChange={setUserFilter}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
@@ -262,19 +263,23 @@ export const AssetTrendChart2025Enhanced = () => {
             </div>
           )}
           
-          <Select value={accountFilter} onValueChange={setAccountFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="계좌 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 계좌</SelectItem>
-              {accounts.map(account => (
-                <SelectItem key={account} value={account}>
-                  {account}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            {!isMaster && <Filter className="h-4 w-4 text-muted-foreground" />}
+            <span className="text-sm text-muted-foreground">계좌:</span>
+            <Select value={accountFilter} onValueChange={setAccountFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="계좌 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 계좌</SelectItem>
+                {accounts.map(account => (
+                  <SelectItem key={account} value={account}>
+                    {account}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
