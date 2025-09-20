@@ -105,8 +105,16 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
     setIsSaving(true);
     
     try {
+      // 현재 사용자 ID 가져오기
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('사용자가 로그인되어 있지 않습니다.');
+      }
+
       // 모든 계좌 정보를 데이터베이스에 저장
       const accountData = accounts.map(account => ({
+        user_id: user.id,  // 현재 사용자 ID 추가
         account_name: account.accountName,
         account_type: account.accountType,
         balance: account.balance,
@@ -114,10 +122,10 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
         source: 'manual'
       }));
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('account_balances')
         .upsert(accountData, {
-          onConflict: 'account_name,account_type'
+          onConflict: 'user_id,account_name,account_type'  // user_id도 포함
         });
 
       if (error) {
@@ -135,7 +143,7 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
       toast({
         variant: "destructive",
         title: "저장 실패",
-        description: "계좌 정보 저장 중 오류가 발생했습니다."
+        description: error instanceof Error ? error.message : "계좌 정보 저장 중 오류가 발생했습니다."
       });
     } finally {
       setIsSaving(false);
