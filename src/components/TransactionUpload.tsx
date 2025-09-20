@@ -9,6 +9,8 @@ import { CSVParser } from '@/services/csvParser';
 import { CSVMappingDialog } from './CSVMappingDialog';
 import { BankTemplate } from '@/services/bankTemplates';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import * as XLSX from 'xlsx';
 
 interface TransactionUploadProps {
@@ -16,6 +18,7 @@ interface TransactionUploadProps {
 }
 
 export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete }) => {
+  const { user } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -138,13 +141,46 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
   };
 
   const handleMappingConfirm = async (template: BankTemplate, customMapping?: any) => {
+    if (!file || !user) return;
 
+    setIsUploading(true);
+    
     try {
-      // 템플릿을 사용해서 데이터 파싱
+      // 1. 파일 정보를 upload_files 테이블에 저장
+      const { data: uploadFileData, error: uploadError } = await supabase
+        .from('upload_files')
+        .insert({
+          user_id: user.id,
+          filename: `upload_${Date.now()}_${file.name}`,
+          original_filename: file.name,
+          file_size: file.size,
+          file_type: file.name.toLowerCase().endsWith('.xlsx') ? 'xlsx' : 'csv',
+          status: 'processing'
+        })
+        .select('id')
+        .single();
+
+      if (uploadError || !uploadFileData) {
+        throw new Error('파일 업로드 기록 저장 실패');
+      }
+
+      const fileUploadId = uploadFileData.id;
+
+      // 2. 템플릿을 사용해서 데이터 파싱
       setUploadProgress(30);
       const parseResult = await CSVParser.parseTransactionCSVWithTemplate(csvData, template);
       
       if (parseResult.errors.length > 0 && parseResult.transactions.length === 0) {
+        // 실패 상태로 업데이트
+        await supabase
+          .from('upload_files')
+          .update({ 
+            status: 'failed',
+            error_message: parseResult.errors.join('; '),
+            processed_records_count: 0
+          })
+          .eq('id', fileUploadId);
+
         toast({
           variant: "destructive",
           title: "데이터 파싱 실패",
@@ -155,10 +191,23 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
         return;
       }
 
-      // 데이터베이스에 저장
+      // 3. 데이터베이스에 저장
       setUploadProgress(70);
-      const saveResult = await CSVParser.saveTransactions(parseResult.transactions);
+      const saveResult = await CSVParser.saveTransactions(parseResult.transactions, fileUploadId);
       
+      // 4. 파일 상태 업데이트
+      const finalStatus = saveResult.errors.length === 0 ? 'success' : 
+                         saveResult.success > 0 ? 'partial' : 'failed';
+      
+      await supabase
+        .from('upload_files')
+        .update({ 
+          status: finalStatus,
+          processed_records_count: saveResult.success,
+          error_message: saveResult.errors.length > 0 ? saveResult.errors.join('; ') : null
+        })
+        .eq('id', fileUploadId);
+
       setUploadProgress(100);
       setUploadResult({
         success: saveResult.success,

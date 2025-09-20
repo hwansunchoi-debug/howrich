@@ -350,7 +350,7 @@ export class CSVParser {
   /**
    * 거래내역을 데이터베이스에 저장
    */
-  static async saveTransactions(transactions: TransactionRow[]): Promise<{ success: number; errors: string[] }> {
+  static async saveTransactions(transactions: TransactionRow[], fileUploadId?: string): Promise<{ success: number; errors: string[] }> {
     const { supabase } = await import('@/integrations/supabase/client');
     
     // 현재 사용자 ID 가져오기
@@ -394,7 +394,7 @@ export class CSVParser {
           continue;
         }
 
-        // 거래내역 저장 (user_id 추가)
+        // 거래내역 저장 (user_id 및 file_upload_id 추가)
         const { error } = await supabase
           .from('transactions')
           .insert({
@@ -404,7 +404,8 @@ export class CSVParser {
             amount: transaction.amount,
             type: transaction.type,
             category_id: categoryId,
-            source: 'csv_import'
+            source: fileUploadId ? 'csv_upload' : 'csv_import',
+            file_upload_id: fileUploadId
           });
 
         if (error) {

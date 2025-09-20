@@ -3,65 +3,52 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, Trash2, Calendar, Download, AlertCircle } from 'lucide-react';
+import { FileText, Trash2, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
-interface UploadRecord {
+interface UploadFile {
   id: string;
   filename: string;
+  original_filename: string;
+  file_size: number;
+  file_type: string;
   upload_date: string;
-  record_count: number;
-  file_type: 'csv' | 'xlsx';
-  status: 'success' | 'partial' | 'failed';
+  processed_records_count: number;
+  status: 'processing' | 'success' | 'failed' | 'partial';
+  error_message?: string;
 }
 
 export const UploadHistoryManager: React.FC = () => {
   const { user } = useAuth();
-  const [uploads, setUploads] = useState<UploadRecord[]>([]);
+  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      fetchUploadHistory();
+      fetchUploadFiles();
     }
   }, [user]);
 
-  const fetchUploadHistory = async () => {
+  const fetchUploadFiles = async () => {
     if (!user) return;
 
     try {
-      // 사용자의 거래 내역에서 업로드된 파일별로 그룹화
-      const { data: transactions, error } = await supabase
-        .from('transactions')
-        .select('source, created_at')
+      const { data, error } = await supabase
+        .from('upload_files')
+        .select('*')
         .eq('user_id', user.id)
-        .eq('source', 'csv_upload')
-        .order('created_at', { ascending: false });
+        .order('upload_date', { ascending: false });
 
       if (error) throw error;
-
-      // 업로드 기록을 날짜별로 그룹화
-      const groupedUploads: Record<string, number> = {};
-      transactions?.forEach(transaction => {
-        const date = transaction.created_at.split('T')[0];
-        groupedUploads[date] = (groupedUploads[date] || 0) + 1;
-      });
-
-      const uploadRecords: UploadRecord[] = Object.entries(groupedUploads).map(([date, count]) => ({
-        id: date,
-        filename: `upload_${date}`,
-        upload_date: date,
-        record_count: count,
-        file_type: 'csv' as const,
-        status: 'success' as const
-      }));
-
-      setUploads(uploadRecords);
+      setUploadFiles((data || []).map(file => ({
+        ...file,
+        status: file.status as 'processing' | 'success' | 'failed' | 'partial'
+      })));
     } catch (error) {
-      console.error('업로드 기록 조회 실패:', error);
+      console.error('업로드 파일 조회 실패:', error);
       toast({
         variant: "destructive",
         title: "업로드 기록 조회 실패",
@@ -72,39 +59,37 @@ export const UploadHistoryManager: React.FC = () => {
     }
   };
 
-  const handleDelete = async (uploadDate: string) => {
+  const handleDelete = async (fileId: string) => {
     if (!user) return;
 
-    setDeleting(uploadDate);
+    setDeleting(fileId);
     
     try {
-      // 해당 날짜의 CSV 업로드 거래내역 삭제
-      const { error: transactionError } = await supabase
+      // 해당 파일로 업로드된 거래내역 삭제
+      const { error: txError } = await supabase
         .from('transactions')
         .delete()
         .eq('user_id', user.id)
-        .eq('source', 'csv_upload')
-        .gte('created_at', `${uploadDate}T00:00:00`)
-        .lt('created_at', `${uploadDate}T23:59:59`);
+        .eq('file_upload_id', fileId);
 
-      if (transactionError) throw transactionError;
+      if (txError) throw txError;
 
-      // 관련 잔액 스냅샷도 삭제 (필요한 경우)
-      const { error: balanceError } = await supabase
-        .from('balance_snapshots')
+      // 업로드 파일 기록 삭제
+      const { error: fileError } = await supabase
+        .from('upload_files')
         .delete()
-        .eq('user_id', user.id)
-        .eq('snapshot_date', uploadDate);
+        .eq('id', fileId)
+        .eq('user_id', user.id);
 
-      // 잔액 오류는 무시 (잔액은 다른 소스에서도 올 수 있음)
+      if (fileError) throw fileError;
 
       toast({
         title: "업로드 데이터 삭제 완료",
-        description: `${uploadDate} 업로드된 거래내역이 모두 삭제되었습니다.`
+        description: "업로드된 파일과 관련 거래내역이 모두 삭제되었습니다."
       });
 
       // 목록 새로고침
-      fetchUploadHistory();
+      fetchUploadFiles();
     } catch (error) {
       console.error('업로드 데이터 삭제 실패:', error);
       toast({
@@ -121,8 +106,18 @@ export const UploadHistoryManager: React.FC = () => {
     return new Date(dateString).toLocaleDateString('ko-KR', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   if (loading) {
@@ -143,7 +138,7 @@ export const UploadHistoryManager: React.FC = () => {
     );
   }
 
-  if (uploads.length === 0) {
+  if (uploadFiles.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -178,35 +173,48 @@ export const UploadHistoryManager: React.FC = () => {
           </AlertDescription>
         </Alert>
 
-        {uploads.map((upload) => (
+        {uploadFiles.map((file) => (
           <div
-            key={upload.id}
+            key={file.id}
             className="flex items-center justify-between p-4 border rounded-lg"
           >
             <div className="flex items-center gap-3">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <div>
-                <div className="font-medium">
-                  {formatDate(upload.upload_date)} 업로드
-                </div>
+                <div className="font-medium">{file.original_filename}</div>
                 <div className="text-sm text-muted-foreground">
-                  {upload.record_count}개 거래내역
+                  업로드: {formatDate(file.upload_date)} • 
+                  크기: {formatFileSize(file.file_size)} • 
+                  처리된 기록: {file.processed_records_count}건
                 </div>
+                {file.error_message && (
+                  <div className="text-sm text-red-600 mt-1">
+                    오류: {file.error_message}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <Badge variant={upload.status === 'success' ? 'default' : 'destructive'}>
-                {upload.status === 'success' ? '성공' : '실패'}
+              <Badge 
+                variant={
+                  file.status === 'success' ? 'default' : 
+                  file.status === 'failed' ? 'destructive' : 
+                  file.status === 'partial' ? 'secondary' : 'outline'
+                }
+              >
+                {file.status === 'success' ? '성공' : 
+                 file.status === 'failed' ? '실패' : 
+                 file.status === 'partial' ? '부분성공' : '처리중'}
               </Badge>
               
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleDelete(upload.id)}
-                disabled={deleting === upload.id}
+                onClick={() => handleDelete(file.id)}
+                disabled={deleting === file.id}
               >
-                {deleting === upload.id ? (
+                {deleting === file.id ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary" />
                 ) : (
                   <Trash2 className="h-4 w-4" />

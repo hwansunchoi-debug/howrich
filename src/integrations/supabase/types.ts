@@ -274,6 +274,7 @@ export type Database = {
           created_at: string
           date: string
           description: string | null
+          file_upload_id: string | null
           id: string
           institution: string | null
           source: string | null
@@ -287,6 +288,7 @@ export type Database = {
           created_at?: string
           date?: string
           description?: string | null
+          file_upload_id?: string | null
           id?: string
           institution?: string | null
           source?: string | null
@@ -300,6 +302,7 @@ export type Database = {
           created_at?: string
           date?: string
           description?: string | null
+          file_upload_id?: string | null
           id?: string
           institution?: string | null
           source?: string | null
@@ -309,6 +312,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_transactions_file_upload"
+            columns: ["file_upload_id"]
+            isOneToOne: false
+            referencedRelation: "upload_files"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_category_id_fkey"
             columns: ["category_id"]
             isOneToOne: false
@@ -316,6 +326,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      upload_files: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          file_size: number
+          file_type: string
+          filename: string
+          id: string
+          original_filename: string
+          processed_records_count: number
+          status: string
+          updated_at: string
+          upload_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          file_size: number
+          file_type: string
+          filename: string
+          id?: string
+          original_filename: string
+          processed_records_count?: number
+          status?: string
+          updated_at?: string
+          upload_date?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          file_size?: number
+          file_type?: string
+          filename?: string
+          id?: string
+          original_filename?: string
+          processed_records_count?: number
+          status?: string
+          updated_at?: string
+          upload_date?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       user_settings: {
         Row: {
