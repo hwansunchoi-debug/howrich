@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar, Tag } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar, Tag, Settings, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
@@ -12,6 +12,8 @@ import { AssetTrendChart } from "./AssetTrendChart";
 import { AssetTrendChart2025 } from "./AssetTrendChart2025";
 import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
+import { CategoryManagementCard } from "./CategoryManagementCard";
+import { FamilyAssetChart } from "./FamilyAssetChart";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
@@ -475,34 +477,10 @@ export const Dashboard = () => {
         </div>
 
         {/* Category Management */}
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Tag className="h-5 w-5 text-primary" />
-              카테고리 관리
-            </CardTitle>
-            <CardDescription>
-              거래 내역을 카테고리별로 분류하여 관리합니다
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">
-                  미분류 거래가 있는 경우 카테고리를 설정해주세요
-                </p>
-                <Button 
-                  onClick={() => navigate('/categories')} 
-                  variant="outline"
-                  className="w-full md:w-auto"
-                >
-                  <Tag className="h-4 w-4 mr-2" />
-                  카테고리 관리하기
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <CategoryManagementCard />
+        
+        {/* Family Asset Chart (Master Only) */}
+        {isMaster && <FamilyAssetChart />}
 
         {/* Quick Actions */}
         <Card className="shadow-card">
@@ -513,7 +491,7 @@ export const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Button variant="outline" className="justify-start">
                 <PlusCircle className="mr-2 h-4 w-4 text-income" />
                 수입 추가
@@ -529,6 +507,14 @@ export const Dashboard = () => {
               <Button variant="outline" className="justify-start">
                 <Wallet className="mr-2 h-4 w-4" />
                 예산 설정
+              </Button>
+              <Button 
+                variant="outline" 
+                className="justify-start"
+                onClick={() => navigate('/initial-setup')}
+              >
+                <Settings className="mr-2 h-4 w-4" />
+                초기 설정
               </Button>
             </div>
           </CardContent>

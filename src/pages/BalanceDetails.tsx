@@ -126,6 +126,32 @@ export default function BalanceDetails() {
     }
   };
 
+  const deleteAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from('account_balances')
+        .delete()
+        .eq('id', accountId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "계좌 삭제 완료",
+        description: "선택한 계좌가 삭제되었습니다.",
+      });
+
+      fetchAccountBalances();
+    } catch (error) {
+      console.error('계좌 삭제 실패:', error);
+      toast({
+        title: "오류",
+        description: "계좌 삭제에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const formatLastUpdated = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('ko-KR', {
       year: 'numeric',
@@ -266,7 +292,7 @@ export default function BalanceDetails() {
                 <CardContent>
                   <div className="space-y-3">
                     {accountList.map((account) => (
-                      <div
+                        <div
                         key={account.id}
                         className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                       >
@@ -281,10 +307,20 @@ export default function BalanceDetails() {
                             업데이트: {formatLastUpdated(account.last_updated)}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-lg">
-                            {Number(account.balance).toLocaleString()}원
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="font-semibold text-lg">
+                              {Number(account.balance).toLocaleString()}원
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteAccount(account.id)}
+                            className="text-destructive hover:text-destructive/90"
+                          >
+                            삭제
+                          </Button>
                         </div>
                       </div>
                     ))}

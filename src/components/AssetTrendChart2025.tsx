@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import { TrendingUp, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -116,7 +116,7 @@ export const AssetTrendChart2025 = ({ onDataRefresh }: AssetTrendChart2025Props)
           </div>
         ) : (
           <ChartContainer config={chartConfig}>
-            <LineChart
+            <BarChart
               accessibilityLayer
               data={chartData}
               margin={{
@@ -141,14 +141,12 @@ export const AssetTrendChart2025 = ({ onDataRefresh }: AssetTrendChart2025Props)
                 content={<ChartTooltipContent />}
                 formatter={(value) => [formatCurrency(Number(value)), "총자산"]}
               />
-              <Line
+              <Bar
                 dataKey="총자산"
-                type="monotone"
-                stroke="var(--color-총자산)"
-                strokeWidth={2}
-                dot={false}
+                fill="var(--color-총자산)"
+                radius={[4, 4, 0, 0]}
               />
-            </LineChart>
+            </BarChart>
           </ChartContainer>
         )}
       </CardContent>

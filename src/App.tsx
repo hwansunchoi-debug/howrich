@@ -12,6 +12,7 @@ import IncomeDetails from "./pages/IncomeDetails";
 import ExpenseDetails from "./pages/ExpenseDetails";
 import BalanceDetails from "./pages/BalanceDetails";
 import CategoryManagement from "./pages/CategoryManagement";
+import InitialSetupPage from "./pages/InitialSetupPage";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <CategoryManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/initial-setup" 
+              element={
+                <ProtectedRoute>
+                  <InitialSetupPage />
                 </ProtectedRoute>
               } 
             />
