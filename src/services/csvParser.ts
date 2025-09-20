@@ -353,6 +353,13 @@ export class CSVParser {
   static async saveTransactions(transactions: TransactionRow[]): Promise<{ success: number; errors: string[] }> {
     const { supabase } = await import('@/integrations/supabase/client');
     
+    // 현재 사용자 ID 가져오기
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: 0, errors: ['사용자가 로그인되어 있지 않습니다.'] };
+    }
+    
     let success = 0;
     const errors: string[] = [];
 
@@ -368,13 +375,14 @@ export class CSVParser {
         }
         
         if (categoryName) {
-          categoryId = await this.findOrCreateCategory(categoryName, transaction.type);
+          categoryId = await this.findOrCreateCategory(categoryName, transaction.type, user.id);
         }
 
-        // 거래내역 저장
+        // 거래내역 저장 (user_id 추가)
         const { error } = await supabase
           .from('transactions')
           .insert({
+            user_id: user.id,  // 현재 사용자 ID 설정
             date: transaction.date,
             description: transaction.description,
             amount: transaction.amount,
@@ -383,11 +391,13 @@ export class CSVParser {
           });
 
         if (error) {
+          console.error('거래내역 저장 오류:', error);
           errors.push(`"${transaction.description}" 저장 실패: ${error.message}`);
         } else {
           success++;
         }
       } catch (error) {
+        console.error('거래내역 처리 오류:', error);
         errors.push(`"${transaction.description}" 처리 중 오류: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
       }
     }
@@ -398,7 +408,7 @@ export class CSVParser {
   /**
    * 카테고리 찾기 또는 생성
    */
-  private static async findOrCreateCategory(categoryName: string, type: 'income' | 'expense'): Promise<string> {
+  private static async findOrCreateCategory(categoryName: string, type: 'income' | 'expense', userId: string): Promise<string> {
     const { supabase } = await import('@/integrations/supabase/client');
     
     // 기존 카테고리 찾기
@@ -407,16 +417,18 @@ export class CSVParser {
       .select('id')
       .eq('name', categoryName)
       .eq('type', type)
-      .single();
+      .eq('user_id', userId)  // 사용자별 카테고리 검색
+      .maybeSingle();
 
     if (existingCategory) {
       return existingCategory.id;
     }
 
-    // 새 카테고리 생성
+    // 새 카테고리 생성 (user_id 추가)
     const { data: newCategory, error } = await supabase
       .from('categories')
       .insert({
+        user_id: userId,  // 현재 사용자 ID 설정
         name: categoryName,
         type: type,
         color: type === 'income' ? '#10b981' : '#ef4444',
@@ -426,6 +438,7 @@ export class CSVParser {
       .single();
 
     if (error || !newCategory) {
+      console.error('카테고리 생성 오류:', error);
       throw new Error(`카테고리 생성 실패: ${error?.message}`);
     }
 
