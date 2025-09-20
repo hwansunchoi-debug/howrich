@@ -52,6 +52,8 @@ export default function CategoryManagement() {
   const [selectedMerchant, setSelectedMerchant] = useState<MerchantGroup | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [newCategoryId, setNewCategoryId] = useState('');
+  const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -289,7 +291,7 @@ export default function CategoryManagement() {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-2">
@@ -390,7 +392,42 @@ export default function CategoryManagement() {
         {/* 가맹점별 거래 리스트 */}
         <Card>
           <CardHeader>
-            <CardTitle>가맹점별 거래 현황</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              가맹점별 거래 현황
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={bulkMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setBulkMode(!bulkMode);
+                    setSelectedMerchants(new Set());
+                  }}
+                >
+                  {bulkMode ? "완료" : "대량 선택"}
+                </Button>
+                {bulkMode && selectedMerchants.size > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const firstSelected = Array.from(selectedMerchants)[0];
+                      const group = merchantGroups.find(g => g.merchant === firstSelected);
+                      if (group) {
+                        setSelectedMerchant({
+                          ...group,
+                          transactions: merchantGroups
+                            .filter(g => selectedMerchants.has(g.merchant))
+                            .flatMap(g => g.transactions)
+                        });
+                        setShowCategoryDialog(true);
+                      }
+                    }}
+                  >
+                    선택된 {selectedMerchants.size}개 분류
+                  </Button>
+                )}
+              </div>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -410,6 +447,22 @@ export default function CategoryManagement() {
                     key={group.merchant}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
+                    {bulkMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedMerchants.has(group.merchant)}
+                        onChange={(e) => {
+                          const newSelected = new Set(selectedMerchants);
+                          if (e.target.checked) {
+                            newSelected.add(group.merchant);
+                          } else {
+                            newSelected.delete(group.merchant);
+                          }
+                          setSelectedMerchants(newSelected);
+                        }}
+                        className="mr-3"
+                      />
+                    )}
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <h3 className="font-medium">{group.merchant}</h3>

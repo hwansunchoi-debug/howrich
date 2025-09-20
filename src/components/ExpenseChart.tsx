@@ -72,14 +72,36 @@ export const ExpenseChart = ({ onDataRefresh }: ExpenseChartProps) => {
       categoryData[categoryName].amount += Number(transaction.amount);
     });
 
-    // 차트 데이터 형식으로 변환
-    const formattedData: ChartData[] = Object.entries(categoryData)
+    // 차트 데이터 형식으로 변환하고 상위 5개만 선택
+    const sortedData = Object.entries(categoryData)
       .map(([name, data]) => ({
         name,
         value: data.amount,
         fill: data.color,
       }))
       .sort((a, b) => b.value - a.value);
+    
+    // 상위 5개 카테고리만 표시, 나머지는 '기타'로 합계
+    const top5 = sortedData.slice(0, 5);
+    const others = sortedData.slice(5);
+    
+    let formattedData = [...top5];
+    
+    if (others.length > 0) {
+      const otherSum = others.reduce((sum, item) => sum + item.value, 0);
+      formattedData.push({
+        name: '기타',
+        value: otherSum,
+        fill: '#9ca3af' // 기타는 회색으로
+      });
+    }
+
+    // 색상 다양화 - 상위 카테고리들에 서로 다른 색상 적용
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+    formattedData = formattedData.map((item, index) => ({
+      ...item,
+      fill: item.name === '기타' ? '#9ca3af' : (colors[index] || item.fill)
+    }));
 
     setChartData(formattedData);
     setLoading(false);

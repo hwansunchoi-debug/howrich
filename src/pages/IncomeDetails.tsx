@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
+import { TransactionForm } from "../components/TransactionForm";
 
 interface Transaction {
   id: string;
@@ -132,14 +133,15 @@ export default function IncomeDetails() {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-green-500" />
               <h1 className="text-2xl font-bold">수입 내역</h1>
             </div>
           </div>
+          <TransactionForm onTransactionAdded={fetchIncomeTransactions} />
         </div>
 
         {/* 필터 */}
