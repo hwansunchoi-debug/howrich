@@ -75,7 +75,7 @@ export default function BalanceDetails() {
 
       if (snapshot) {
         // 스냅샷 데이터가 있으면 사용
-        setBalances((snapshot.account_details as AccountBalance[]) || []);
+        setBalances((snapshot.account_details as unknown as AccountBalance[]) || []);
         setTotalBalance(Number(snapshot.total_balance));
       } else {
         // 스냅샷이 없으면 최신 계좌 잔액 조회
@@ -379,7 +379,7 @@ const AddBalanceForm = ({ onSuccess }: { onSuccess: () => void }) => {
           user_id: user.id,
           snapshot_date: format(selectedDate, 'yyyy-MM-dd'),
           total_balance: totalBalance,
-          account_details: accounts
+          account_details: accounts as any
         });
 
       if (snapshotError) throw snapshotError;
