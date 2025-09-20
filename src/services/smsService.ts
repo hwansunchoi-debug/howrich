@@ -103,16 +103,20 @@ export class SMSService {
 
   private async processSMS(smsData: any): Promise<void> {
     try {
+      // 현재 사용자 ID 가져오기
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+
       // 이미 처리한 SMS인지 확인
       if (smsData.date <= this.lastProcessedTime) {
         return;
       }
 
-      const parsed = smsParser.parseSMS({
+      const parsed = await smsParser.parseSMS({
         message: smsData.body,
         sender: smsData.address,
         timestamp: smsData.date
-      });
+      }, userId); // userId 전달
 
       if (!parsed) {
         console.log('금융 관련 SMS가 아님:', smsData.address);
@@ -125,7 +129,7 @@ export class SMSService {
       const isDuplicate = await duplicateDetector.isDuplicate({
         amount: parsed.amount,
         merchant: parsed.merchant,
-        type: parsed.type,
+        type: parsed.type === 'transfer' ? 'expense' : parsed.type,
         timestamp: parsed.timestamp,
         source: 'sms'
       });
@@ -137,16 +141,21 @@ export class SMSService {
       }
       
       // 카테고리 ID 찾기
-      const categoryId = await this.findOrCreateCategory(parsed.category || '기타', parsed.type);
+      const categoryId = await this.findOrCreateCategory(
+        parsed.type === 'transfer' ? '계좌간이체' : (parsed.category || '기타'), 
+        parsed.type === 'transfer' ? 'expense' : parsed.type
+      );
       
       // Supabase에 거래내역 저장
       const { error } = await supabase
         .from('transactions')
         .insert({
           amount: parsed.amount,
-          type: parsed.type,
+          type: parsed.type === 'transfer' ? 'expense' : parsed.type, // transfer는 expense로 저장
           category_id: categoryId,
-          description: `${parsed.bank} - ${parsed.merchant}`,
+          description: parsed.type === 'transfer' && parsed.transferInfo?.targetOwner 
+            ? `${parsed.bank} - ${parsed.transferInfo.targetOwner}님께 이체`
+            : `${parsed.bank} - ${parsed.merchant}`,
           date: this.formatDate(parsed.timestamp)
         });
 

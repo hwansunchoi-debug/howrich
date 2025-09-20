@@ -14,6 +14,7 @@ interface AccountBalance {
   id: string;
   accountName: string;
   accountType: 'bank' | 'card' | 'investment' | 'pay' | 'crypto';
+  accountNumber: string;
   balance: number;
 }
 
@@ -42,16 +43,17 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
   const [newAccount, setNewAccount] = useState({
     accountName: '',
     accountType: '' as AccountBalance['accountType'],
+    accountNumber: '',
     balance: 0
   });
   const [isSaving, setIsSaving] = useState(false);
 
   const addAccount = () => {
-    if (!newAccount.accountName || !newAccount.accountType) {
+    if (!newAccount.accountName || !newAccount.accountType || !newAccount.accountNumber) {
       toast({
         variant: "destructive",
         title: "입력 오류",
-        description: "계좌명과 계좌 종류를 모두 입력해주세요."
+        description: "계좌명, 계좌 종류, 계좌번호를 모두 입력해주세요."
       });
       return;
     }
@@ -79,6 +81,7 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
     setNewAccount({
       accountName: '',
       accountType: '' as AccountBalance['accountType'],
+      accountNumber: '',
       balance: 0
     });
 
@@ -117,6 +120,7 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
         user_id: user.id,  // 현재 사용자 ID 추가
         account_name: account.accountName,
         account_type: account.accountType,
+        account_number: account.accountNumber,
         balance: account.balance,
         source: 'manual'
       }));
@@ -167,7 +171,7 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
       
       <CardContent className="space-y-6">
         {/* 새 계좌 추가 폼 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg bg-muted/50">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg bg-muted/50">
           <div>
             <Label htmlFor="accountName">계좌명</Label>
             <Input
@@ -175,6 +179,16 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
               placeholder="예: 우리은행 주거래"
               value={newAccount.accountName}
               onChange={(e) => setNewAccount({...newAccount, accountName: e.target.value})}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="accountNumber">계좌번호 *</Label>
+            <Input
+              id="accountNumber"
+              placeholder="계좌번호 입력"
+              value={newAccount.accountNumber}
+              onChange={(e) => setNewAccount({...newAccount, accountNumber: e.target.value})}
             />
           </div>
           
@@ -237,7 +251,10 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
                     <Badge className={accountTypeColors[account.accountType]}>
                       {accountTypeLabels[account.accountType]}
                     </Badge>
-                    <span className="font-medium">{account.accountName}</span>
+                    <div>
+                      <div className="font-medium">{account.accountName}</div>
+                      <div className="text-sm text-muted-foreground">{account.accountNumber}</div>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-3">

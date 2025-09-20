@@ -7,10 +7,15 @@ interface SMSData {
 interface ParsedTransaction {
   amount: number;
   merchant: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'transfer';
   bank: string;
   timestamp: number;
   category?: string;
+  transferInfo?: {
+    isInternal: boolean;
+    targetAccount?: string;
+    targetOwner?: string;
+  };
 }
 
 export class SMSParser {
@@ -164,7 +169,7 @@ export class SMSParser {
     'LG유플러스': '공과금'
   };
 
-  parseSMS(smsData: SMSData): ParsedTransaction | null {
+  async parseSMS(smsData: SMSData, userId?: string): Promise<ParsedTransaction | null> {
     const { message, sender } = smsData;
     
     // 금융 관련 SMS가 아니면 무시
@@ -176,7 +181,7 @@ export class SMSParser {
     for (const [bank, config] of Object.entries(this.bankPatterns)) {
       const match = message.match(config.pattern);
       if (match) {
-        return this.extractTransactionData(match, bank, message, config.type, smsData.timestamp);
+        return await this.extractTransactionData(match, bank, message, config.type, smsData.timestamp, userId);
       }
     }
 
@@ -204,13 +209,14 @@ export class SMSParser {
     );
   }
 
-  private extractTransactionData(
+  private async extractTransactionData(
     match: RegExpMatchArray, 
     bank: string, 
     message: string, 
     defaultType: 'income' | 'expense',
-    timestamp: number
-  ): ParsedTransaction {
+    timestamp: number,
+    userId?: string
+  ): Promise<ParsedTransaction> {
     const date = match[1]; // MM/DD
     const time = match[2]; // HH:MM
     const merchant = match[3] || '알 수 없음';
@@ -220,11 +226,23 @@ export class SMSParser {
     const amount = parseInt(amountStr.replace(/,/g, ''));
     
     // 입금/출금 구분
-    let type: 'income' | 'expense' = defaultType;
+    let type: 'income' | 'expense' | 'transfer' = defaultType;
     if (message.includes('입금') || message.includes('받은돈')) {
       type = 'income';
     } else if (message.includes('출금') || message.includes('결제') || message.includes('승인')) {
       type = 'expense';
+    }
+    
+    // 계좌간 이체인지 확인 (userId가 제공된 경우만)
+    let transferInfo: { isInternal: boolean; targetAccount?: string; targetOwner?: string; } | undefined;
+    
+    if (userId) {
+      const { accountTransferService } = await import('./accountTransferService');
+      transferInfo = await accountTransferService.isInternalTransfer(message, userId);
+      
+      if (transferInfo.isInternal) {
+        type = 'transfer';
+      }
     }
     
     // 카테고리 자동 분류
@@ -236,7 +254,8 @@ export class SMSParser {
       type,
       bank,
       timestamp,
-      category
+      category,
+      transferInfo
     };
   }
 

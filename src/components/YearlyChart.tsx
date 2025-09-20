@@ -94,7 +94,7 @@ export const YearlyChart = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            {selectedYear}년 월별 현황
+            {selectedYear}년 월별 수입/지출 현황
           </div>
           <Button 
             variant="ghost" 

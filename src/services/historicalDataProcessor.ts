@@ -116,11 +116,15 @@ export class HistoricalDataProcessor {
     // SMS 서비스의 파서 재사용
     const { smsParser } = await import('./smsParser');
     
-    const parsed = smsParser.parseSMS({
+    // 현재 사용자 ID 가져오기
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+    
+    const parsed = await smsParser.parseSMS({
       message: smsData.body,
       sender: smsData.address,
       timestamp: smsData.date
-    });
+    }, userId);
 
     if (!parsed) {
       return false; // 금융 관련 SMS가 아님
@@ -132,7 +136,7 @@ export class HistoricalDataProcessor {
     const isDuplicate = await duplicateDetector.isDuplicate({
       amount: parsed.amount,
       merchant: parsed.merchant,
-      type: parsed.type,
+      type: parsed.type === 'transfer' ? 'expense' : parsed.type,
       timestamp: parsed.timestamp,
       source: 'sms'
     });
@@ -142,19 +146,24 @@ export class HistoricalDataProcessor {
     }
 
     // 카테고리 찾기/생성
-    const categoryId = await this.findOrCreateCategory(parsed.category || '기타', parsed.type);
+    const categoryId = await this.findOrCreateCategory(
+      parsed.type === 'transfer' ? '계좌간이체' : (parsed.category || '기타'), 
+      parsed.type === 'transfer' ? 'expense' : parsed.type
+    );
 
     // 데이터베이스에 저장
     const { error } = await supabase
-      .from('transactions')
-      .insert({
-        amount: parsed.amount,
-        type: parsed.type,
-        category_id: categoryId,
-        description: `${parsed.bank} - ${parsed.merchant}`,
-        date: this.formatDate(parsed.timestamp),
-        created_at: new Date(parsed.timestamp).toISOString()
-      });
+        .from('transactions')
+        .insert({
+          amount: parsed.amount,
+          type: parsed.type === 'transfer' ? 'expense' : parsed.type, // transfer는 expense로 저장
+          category_id: categoryId,
+          description: parsed.type === 'transfer' && parsed.transferInfo?.targetOwner 
+            ? `${parsed.bank} - ${parsed.transferInfo.targetOwner}님께 이체`
+            : `${parsed.bank} - ${parsed.merchant}`,
+          date: this.formatDate(parsed.timestamp),
+          created_at: new Date(parsed.timestamp).toISOString()
+        });
 
     if (error) {
       console.error('과거 거래내역 저장 실패:', error);
