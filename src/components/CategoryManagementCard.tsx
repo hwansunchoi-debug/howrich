@@ -135,9 +135,8 @@ export const CategoryManagementCard = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="quick" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="quick">빠른 분류</TabsTrigger>
-            <TabsTrigger value="details">세부 내역</TabsTrigger>
             <TabsTrigger value="manage">전체 관리</TabsTrigger>
           </TabsList>
           
@@ -198,35 +197,6 @@ export const CategoryManagementCard = () => {
                 ))}
               </div>
             )}
-          </TabsContent>
-          
-          <TabsContent value="details" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Button 
-                onClick={() => navigate('/income')} 
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center gap-2"
-              >
-                <TrendingUp className="h-6 w-6 text-green-600" />
-                <span>수입 내역</span>
-              </Button>
-              <Button 
-                onClick={() => navigate('/expenses')} 
-                variant="outline"
-                className="h-20 flex flex-col items-center justify-center gap-2"
-              >
-                <TrendingDown className="h-6 w-6 text-red-600" />
-                <span>지출 내역</span>
-              </Button>
-            </div>
-            <Button 
-              onClick={() => navigate('/balance-details')} 
-              variant="outline"
-              className="w-full h-16 flex items-center justify-center gap-2"
-            >
-              <BarChart3 className="h-6 w-6 text-blue-600" />
-              <span>자산 현황 상세</span>
-            </Button>
           </TabsContent>
           
           <TabsContent value="manage" className="space-y-4">

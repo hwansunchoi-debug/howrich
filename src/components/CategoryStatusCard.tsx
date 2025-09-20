@@ -32,6 +32,7 @@ interface Transaction {
   };
   category_id?: string;
   user_id?: string;
+  institution?: string;
 }
 
 interface CategoryStatusCardProps {
@@ -64,9 +65,13 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
   
   // 필터 상태
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [selectedCategoryType, setSelectedCategoryType] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectAll, setSelectAll] = useState<boolean>(false);
   const [userList, setUserList] = useState<any[]>([]);
 
   const predefinedColors = [
@@ -79,7 +84,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
     if (isMaster) {
       fetchUserList();
     }
-  }, [categories, transactions, selectedUserId, selectedYear, selectedMonth, searchTerm, isMaster]);
+  }, [categories, transactions, selectedUserId, selectedCategoryType, selectedYear, selectedMonth, selectedCategory, selectedInstitution, searchTerm, selectAll, isMaster]);
 
   const fetchUserList = async () => {
     try {
@@ -104,6 +109,11 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
       filteredTransactions = filteredTransactions.filter(t => t.user_id === selectedUserId);
     }
     
+    // 대분류 필터
+    if (selectedCategoryType !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.type === selectedCategoryType);
+    }
+    
     // 연도 필터
     if (selectedYear !== 'all') {
       filteredTransactions = filteredTransactions.filter(t => 
@@ -116,6 +126,16 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
       filteredTransactions = filteredTransactions.filter(t => 
         (new Date(t.date).getMonth() + 1).toString() === selectedMonth
       );
+    }
+    
+    // 카테고리 필터
+    if (selectedCategory !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.category_id === selectedCategory);
+    }
+    
+    // 금융기관 필터
+    if (selectedInstitution !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.institution === selectedInstitution);
     }
     
     // 검색 필터
@@ -300,35 +320,31 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
         </Card>
       </div>
 
-      {/* 필터 섹션 */}
+      {/* 필터 및 검색 */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            필터 옵션
+            필터 및 검색
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
-              {isMaster && (
-                <div>
-                  <label className="text-sm font-medium mb-2 block">사용자</label>
-                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="사용자 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체</SelectItem>
-                      {userList.map((user) => (
-                        <SelectItem key={user.user_id} value={user.user_id}>
-                          {user.display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+            <div className="grid gap-4 md:grid-cols-5">
+              <div>
+                <label className="text-sm font-medium mb-2 block">대분류</label>
+                <Select value={selectedCategoryType} onValueChange={setSelectedCategoryType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="대분류 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="income">수입</SelectItem>
+                    <SelectItem value="expense">지출</SelectItem>
+                    <SelectItem value="other">기타</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
               <div>
                 <label className="text-sm font-medium mb-2 block">연도</label>
@@ -361,15 +377,85 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">카테고리</label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="카테고리 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {categories.filter(cat => selectedCategoryType === 'all' || cat.type === selectedCategoryType).map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: category.color }}
+                          />
+                          {category.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">금융기관</label>
+                <Select value={selectedInstitution} onValueChange={setSelectedInstitution}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="금융기관 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {[...new Set(transactions.map(t => t.institution).filter(Boolean))].map((institution) => (
+                      <SelectItem key={institution} value={institution!}>
+                        {institution}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             
-            <div>
-              <label className="text-sm font-medium mb-2 block">검색</label>
-              <Input
-                placeholder="카테고리명 또는 거래내역 검색..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            {isMaster && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">사용자</label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="사용자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {userList.map((user) => (
+                      <SelectItem key={user.user_id} value={user.user_id}>
+                        {user.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-2 block">검색</label>
+                <Input
+                  placeholder="카테고리명 또는 거래내역 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectAll(!selectAll)}
+                  className="mb-0"
+                >
+                  전체 선택
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

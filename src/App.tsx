@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import { Auth } from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import IncomeDetails from "./pages/IncomeDetails";
+import OtherDetails from "./pages/OtherDetails";
 import ExpenseDetails from "./pages/ExpenseDetails";
 import BalanceDetails from "./pages/BalanceDetails";
 import CategoryManagement from "./pages/CategoryManagement";
@@ -41,6 +42,14 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+              <Route
+                path="/other"
+                element={
+                  <ProtectedRoute>
+                    <OtherDetails />
+                  </ProtectedRoute>
+                }
+              />
             <Route 
               path="/expense" 
               element={

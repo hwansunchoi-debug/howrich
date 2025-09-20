@@ -30,6 +30,7 @@ export const Dashboard = () => {
   const [monthlyData, setMonthlyData] = useState({
     income: 0,
     expense: 0,
+    other: 0,
     balance: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -182,7 +183,7 @@ export const Dashboard = () => {
     // 일반 사용자는 항상 본인 데이터만 (userIds = [user.id])
     
     if (userIds.length === 0) {
-      setMonthlyData({ income: 0, expense: 0, balance: 0 });
+      setMonthlyData({ income: 0, expense: 0, other: 0, balance: 0 });
       setLoading(false);
       return;
     }
@@ -204,9 +205,19 @@ export const Dashboard = () => {
       .in('user_id', userIds)
       .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
       .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+    
+    // 이번 달 기타 조회
+    const { data: otherData } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('type', 'other')
+      .in('user_id', userIds)
+      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
+      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
 
     const totalIncome = incomeData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
     const totalExpense = expenseData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
+    const totalOther = otherData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
 
     // 최신 잔액 데이터 조회 - account_balances에서 먼저 조회
     const { data: accountBalances } = await supabase
@@ -233,6 +244,7 @@ export const Dashboard = () => {
     setMonthlyData({
       income: totalIncome,
       expense: totalExpense,
+      other: totalOther,
       balance: totalBalance,
     });
     
@@ -420,7 +432,7 @@ export const Dashboard = () => {
         )}
 
         {/* Summary Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card 
             className="bg-gradient-success text-white shadow-elevated cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
             onClick={() => navigate('/income')}
@@ -450,6 +462,22 @@ export const Dashboard = () => {
                 {loading ? '로딩 중...' : formatCurrency(monthlyData.expense)}
               </div>
               <p className="text-xs text-muted-foreground">이번 달 총 지출</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="bg-gradient-subtle shadow-card cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
+            onClick={() => navigate('/other')}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">이번 달 기타</CardTitle>
+              <Tag className="h-4 w-4" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {loading ? '로딩 중...' : formatCurrency(monthlyData.other)}
+              </div>
+              <p className="text-xs text-muted-foreground">이번 달 총 기타</p>
             </CardContent>
           </Card>
 

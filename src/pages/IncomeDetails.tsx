@@ -211,13 +211,13 @@ export default function IncomeDetails() {
           <TransactionForm onTransactionAdded={fetchIncomeTransactions} />
         </div>
 
-        {/* 필터 */}
+        {/* 필터 및 검색 */}
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
-                <span className="font-medium">필터 옵션</span>
+                <span className="font-medium">필터 및 검색</span>
               </div>
               
               <div className="grid gap-4 md:grid-cols-4">
@@ -244,6 +244,7 @@ export default function IncomeDetails() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
                       {Array.from({length: 12}, (_, i) => (
                         <SelectItem key={i + 1} value={(i + 1).toString()}>
                           {i + 1}월
