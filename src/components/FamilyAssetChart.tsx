@@ -44,6 +44,13 @@ export const FamilyAssetChart = () => {
         .eq('user_id', user.id)
         .single();
 
+      // account_balances에서 잔액 조회
+      const { data: myAccountBalances } = await supabase
+        .from('account_balances')
+        .select('balance')
+        .eq('user_id', user.id);
+
+      // balance_snapshots에서도 조회
       const { data: myBalance } = await supabase
         .from('balance_snapshots')
         .select('total_balance')
@@ -52,10 +59,17 @@ export const FamilyAssetChart = () => {
         .limit(1)
         .maybeSingle();
 
-      if (myBalance) {
+      let totalAssets = 0;
+      if (myAccountBalances && myAccountBalances.length > 0) {
+        totalAssets = myAccountBalances.reduce((sum, account) => sum + Number(account.balance), 0);
+      } else if (myBalance) {
+        totalAssets = Number(myBalance.total_balance);
+      }
+
+      if (totalAssets > 0) {
         familyData.push({
           name: '나',
-          총자산: Number(myBalance.total_balance),
+          총자산: totalAssets,
           display_name: myProfile?.display_name || '나'
         });
       }
@@ -72,6 +86,13 @@ export const FamilyAssetChart = () => {
         // 멤버 역할인 사용자는 제외
         if (memberProfile?.role === 'member') continue;
 
+        // account_balances에서 잔액 조회
+        const { data: memberAccountBalances } = await supabase
+          .from('account_balances')
+          .select('balance')
+          .eq('user_id', member.member_id);
+
+        // balance_snapshots에서도 조회
         const { data: memberBalance } = await supabase
           .from('balance_snapshots')
           .select('total_balance')
@@ -80,10 +101,17 @@ export const FamilyAssetChart = () => {
           .limit(1)
           .maybeSingle();
 
-        if (memberBalance) {
+        let memberTotalAssets = 0;
+        if (memberAccountBalances && memberAccountBalances.length > 0) {
+          memberTotalAssets = memberAccountBalances.reduce((sum, account) => sum + Number(account.balance), 0);
+        } else if (memberBalance) {
+          memberTotalAssets = Number(memberBalance.total_balance);
+        }
+
+        if (memberTotalAssets > 0) {
           familyData.push({
             name: member.display_name,
-            총자산: Number(memberBalance.total_balance),
+            총자산: memberTotalAssets,
             display_name: member.display_name
           });
         }

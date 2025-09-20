@@ -35,23 +35,58 @@ export const AssetTrendChart = () => {
 
     setLoading(true);
     try {
-      const { data: snapshots, error } = await supabase
+      // 먼저 account_balances에서 데이터 조회
+      const { data: accountBalances, error: accountError } = await supabase
+        .from('account_balances')
+        .select('balance, last_updated, account_name')
+        .eq('user_id', user.id)
+        .order('last_updated', { ascending: true });
+
+      // balance_snapshots에서도 데이터 조회
+      const { data: snapshots, error: snapshotError } = await supabase
         .from('balance_snapshots')
         .select('snapshot_date, total_balance')
         .eq('user_id', user.id)
         .order('snapshot_date', { ascending: true })
-        .limit(12); // 최근 12개 데이터포인트
+        .limit(12);
 
-      if (error) throw error;
+      if (accountError && snapshotError) {
+        throw accountError;
+      }
 
-      const chartData = (snapshots || []).map(snapshot => ({
-        date: snapshot.snapshot_date,
-        balance: Number(snapshot.total_balance),
-        formattedDate: new Date(snapshot.snapshot_date).toLocaleDateString('ko-KR', {
-          month: 'short',
-          day: 'numeric'
-        })
-      }));
+      let chartData: AssetData[] = [];
+
+      // account_balances 데이터가 있으면 사용
+      if (accountBalances && accountBalances.length > 0) {
+        const groupedByDate = accountBalances.reduce((acc, balance) => {
+          const date = balance.last_updated.split('T')[0];
+          if (!acc[date]) {
+            acc[date] = 0;
+          }
+          acc[date] += Number(balance.balance);
+          return acc;
+        }, {} as Record<string, number>);
+
+        chartData = Object.entries(groupedByDate).map(([date, totalBalance]) => ({
+          date,
+          balance: totalBalance,
+          formattedDate: new Date(date).toLocaleDateString('ko-KR', {
+            month: 'short',
+            day: 'numeric'
+          })
+        }));
+      } 
+      // 없으면 balance_snapshots 사용
+      else if (snapshots && snapshots.length > 0) {
+        chartData = snapshots.map(snapshot => ({
+          date: snapshot.snapshot_date,
+          balance: Number(snapshot.total_balance),
+          formattedDate: new Date(snapshot.snapshot_date).toLocaleDateString('ko-KR', {
+            month: 'short',
+            day: 'numeric'
+          })
+        }));
+      }
 
       setData(chartData);
     } catch (error) {

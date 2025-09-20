@@ -41,7 +41,17 @@ export const AssetTrendChart2025 = ({ onDataRefresh }: AssetTrendChart2025Props)
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // 먼저 account_balances에서 2025년 데이터 조회
+      const { data: accountBalances, error: accountError } = await supabase
+        .from('account_balances')
+        .select('balance, last_updated, account_name')
+        .eq('user_id', user.id)
+        .gte('last_updated', '2025-01-01')
+        .lt('last_updated', '2026-01-01')
+        .order('last_updated', { ascending: true });
+
+      // balance_snapshots에서도 데이터 조회
+      const { data: snapshots, error: snapshotError } = await supabase
         .from('balance_snapshots')
         .select('snapshot_date, total_balance')
         .eq('user_id', user.id)
@@ -49,15 +59,41 @@ export const AssetTrendChart2025 = ({ onDataRefresh }: AssetTrendChart2025Props)
         .lt('snapshot_date', '2026-01-01')
         .order('snapshot_date', { ascending: true });
 
-      if (error) throw error;
+      if (accountError && snapshotError) {
+        throw accountError;
+      }
 
-      const formattedData = (data || []).map(item => ({
-        date: new Date(item.snapshot_date).toLocaleDateString('ko-KR', { 
-          month: 'short', 
-          day: 'numeric' 
-        }),
-        총자산: Number(item.total_balance)
-      }));
+      let formattedData: AssetData[] = [];
+
+      // account_balances 데이터가 있으면 사용
+      if (accountBalances && accountBalances.length > 0) {
+        const groupedByDate = accountBalances.reduce((acc, balance) => {
+          const date = balance.last_updated.split('T')[0];
+          if (!acc[date]) {
+            acc[date] = 0;
+          }
+          acc[date] += Number(balance.balance);
+          return acc;
+        }, {} as Record<string, number>);
+
+        formattedData = Object.entries(groupedByDate).map(([date, totalBalance]) => ({
+          date: new Date(date).toLocaleDateString('ko-KR', {
+            month: 'short',
+            day: 'numeric'
+          }),
+          총자산: totalBalance
+        }));
+      }
+      // 없으면 balance_snapshots 사용
+      else if (snapshots && snapshots.length > 0) {
+        formattedData = snapshots.map(snapshot => ({
+          date: new Date(snapshot.snapshot_date).toLocaleDateString('ko-KR', {
+            month: 'short',
+            day: 'numeric'
+          }),
+          총자산: Number(snapshot.total_balance)
+        }));
+      }
 
       setChartData(formattedData);
     } catch (error) {

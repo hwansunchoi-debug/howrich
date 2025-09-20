@@ -208,19 +208,32 @@ export const Dashboard = () => {
     const totalIncome = incomeData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
     const totalExpense = expenseData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
 
-    // 최신 잔액 데이터 조회
-    const { data: latestBalance } = await supabase
-      .from('balance_snapshots')
-      .select('total_balance, snapshot_date')
-      .in('user_id', userIds)
-      .order('snapshot_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // 최신 잔액 데이터 조회 - account_balances에서 먼저 조회
+    const { data: accountBalances } = await supabase
+      .from('account_balances')
+      .select('balance')
+      .in('user_id', userIds);
+
+    let totalBalance = 0;
+    if (accountBalances && accountBalances.length > 0) {
+      totalBalance = accountBalances.reduce((sum, account) => sum + Number(account.balance), 0);
+    } else {
+      // account_balances에 데이터가 없으면 balance_snapshots에서 조회
+      const { data: latestBalance } = await supabase
+        .from('balance_snapshots')
+        .select('total_balance, snapshot_date')
+        .in('user_id', userIds)
+        .order('snapshot_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      totalBalance = latestBalance?.total_balance || 0;
+    }
 
     setMonthlyData({
       income: totalIncome,
       expense: totalExpense,
-      balance: latestBalance?.total_balance || 0,
+      balance: totalBalance,
     });
     
     setLoading(false);
@@ -262,10 +275,8 @@ export const Dashboard = () => {
     );
   }
 
-  // 초기 설정이 완료되지 않은 경우 설정 화면 표시
-  if (!setupCompleted) {
-    return <InitialSetup onComplete={handleSetupComplete} />;
-  }
+  // 로그인된 사용자만 대시보드에 접근 가능 (초기 설정 여부와 상관없이)
+  // 초기 설정은 별도 버튼으로 접근 가능
 
   return (
     <div className="min-h-screen bg-background">
@@ -482,41 +493,23 @@ export const Dashboard = () => {
         {/* Family Asset Chart (Master Only) */}
         {isMaster && <FamilyAssetChart />}
 
-        {/* Quick Actions */}
+        {/* Initial Setup Access */}
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              빠른 작업
+              <Settings className="h-5 w-5" />
+              설정
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <Button variant="outline" className="justify-start">
-                <PlusCircle className="mr-2 h-4 w-4 text-income" />
-                수입 추가
-              </Button>
-              <Button variant="outline" className="justify-start">
-                <PlusCircle className="mr-2 h-4 w-4 text-expense" />
-                지출 추가
-              </Button>
-              <Button variant="outline" className="justify-start">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                월별 리포트
-              </Button>
-              <Button variant="outline" className="justify-start">
-                <Wallet className="mr-2 h-4 w-4" />
-                예산 설정
-              </Button>
-              <Button 
-                variant="outline" 
-                className="justify-start"
-                onClick={() => navigate('/initial-setup')}
-              >
-                <Settings className="mr-2 h-4 w-4" />
-                초기 설정
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={() => navigate('/initial-setup')}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              초기 설정 및 데이터 관리
+            </Button>
           </CardContent>
         </Card>
         </div>

@@ -13,10 +13,11 @@ import { ko } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { TransactionUpload } from './TransactionUpload';
 import { AccountBalanceForm } from './AccountBalanceForm';
+import { UploadHistoryManager } from './UploadHistoryManager';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
-type SetupStep = 'date' | 'transactions' | 'balances' | 'complete';
+type SetupStep = 'date' | 'transactions' | 'balances' | 'upload-history' | 'complete';
 
 interface InitialSetupProps {
   onComplete: () => void;
@@ -31,6 +32,7 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
     { id: 'date' as SetupStep, title: '기준일 설정', description: '자동 인식을 시작할 날짜를 선택하세요' },
     { id: 'transactions' as SetupStep, title: '과거 거래내역', description: '금융기관 CSV 파일을 업로드하세요' },
     { id: 'balances' as SetupStep, title: '계좌 잔액', description: '현재 계좌 잔액을 입력하세요' },
+    { id: 'upload-history' as SetupStep, title: '업로드 기록', description: '업로드된 데이터를 관리하세요' },
     { id: 'complete' as SetupStep, title: '설정 완료', description: '모든 설정이 완료되었습니다' }
   ];
 
@@ -63,6 +65,11 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
 
   const handleBalancesComplete = () => {
     markStepComplete('balances');
+    setCurrentStep('upload-history');
+  };
+
+  const handleUploadHistoryNext = () => {
+    markStepComplete('upload-history');
     setCurrentStep('complete');
   };
 
@@ -167,6 +174,19 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
           <AccountBalanceForm onComplete={handleBalancesComplete} />
         );
 
+      case 'upload-history':
+        return (
+          <div className="space-y-6">
+            <UploadHistoryManager />
+            <div className="flex justify-center">
+              <Button onClick={handleUploadHistoryNext} className="w-full max-w-md">
+                다음 단계
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        );
+
       case 'complete':
         return (
           <Card className="w-full max-w-2xl mx-auto">
@@ -200,6 +220,13 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
                   <span className="text-sm font-medium">계좌 잔액</span>
                   <Badge variant={completedSteps.has('balances') ? 'default' : 'secondary'}>
                     {completedSteps.has('balances') ? '입력 완료' : '건너뜀'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                  <span className="text-sm font-medium">업로드 기록</span>
+                  <Badge variant={completedSteps.has('upload-history') ? 'default' : 'secondary'}>
+                    {completedSteps.has('upload-history') ? '확인 완료' : '건너뜀'}
                   </Badge>
                 </div>
               </div>
