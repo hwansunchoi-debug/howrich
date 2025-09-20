@@ -71,7 +71,7 @@ export default function CategoryManagement() {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('user_id', user?.id)
+        .or(`user_id.is.null,user_id.eq.${user?.id}`)
         .order('name');
 
       if (error) throw error;
