@@ -46,7 +46,7 @@ export const CategoryManagementCard = () => {
           <Tag className="h-5 w-5 text-primary" />
           카테고리 관리
           {uncategorizedCount > 0 && (
-            <Badge variant="destructive" className="ml-2">
+            <Badge variant="destructive" className="ml-2 animate-pulse">
               <AlertTriangle className="h-3 w-3 mr-1" />
               미분류 {uncategorizedCount}건
             </Badge>
@@ -71,10 +71,10 @@ export const CategoryManagementCard = () => {
             <Button 
               onClick={() => navigate('/categories')} 
               variant={uncategorizedCount > 0 ? "default" : "outline"}
-              className="w-full md:w-auto"
+              className={`w-full md:w-auto ${uncategorizedCount > 0 ? 'bg-red-600 hover:bg-red-700' : ''}`}
             >
               <Tag className="h-4 w-4 mr-2" />
-              카테고리 관리하기
+              {uncategorizedCount > 0 ? '지금 분류하기' : '카테고리 관리하기'}
             </Button>
           </div>
         </div>
