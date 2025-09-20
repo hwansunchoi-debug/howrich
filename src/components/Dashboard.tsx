@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell } from "lucide-react";
@@ -18,6 +19,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { Capacitor } from "@capacitor/core";
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isMaster, loading: roleLoading } = useUserRole();
   const [monthlyData, setMonthlyData] = useState({
@@ -359,7 +361,10 @@ export const Dashboard = () => {
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-gradient-success text-white shadow-elevated">
+          <Card 
+            className="bg-gradient-success text-white shadow-elevated cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
+            onClick={() => navigate('/income')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-white/90">이번 달 수입</CardTitle>
               <TrendingUp className="h-4 w-4 text-white/90" />
@@ -372,7 +377,10 @@ export const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-card shadow-card">
+          <Card 
+            className="bg-gradient-card shadow-card cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
+            onClick={() => navigate('/expense')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">이번 달 지출</CardTitle>
               <TrendingDown className="h-4 w-4 text-expense" />
@@ -385,7 +393,10 @@ export const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-primary text-white shadow-elevated">
+          <Card 
+            className="bg-gradient-primary text-white shadow-elevated cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
+            onClick={() => navigate('/balance')}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-white/90">잔액</CardTitle>
               <Wallet className="h-4 w-4 text-white/90" />
