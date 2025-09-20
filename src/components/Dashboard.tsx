@@ -208,22 +208,6 @@ export const Dashboard = () => {
     }).format(amount);
   };
 
-  const handleDataExport = () => {
-    // 데이터 내보내기 구현 (추후)
-    toast({
-      title: "데이터 내보내기",
-      description: "곧 지원될 예정입니다."
-    });
-  };
-
-  const handleDataImport = () => {
-    // 데이터 가져오기 구현 (추후)
-    toast({
-      title: "데이터 가져오기", 
-      description: "곧 지원될 예정입니다."
-    });
-  };
-
   const handleSetupComplete = () => {
     setSetupCompleted(true);
     checkMobilePlatform(); // 설정 완료 후 모바일 기능 활성화

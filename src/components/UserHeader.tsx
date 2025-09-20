@@ -3,8 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LogOut, Users, Download, Upload, User } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { LogOut, Users, User, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { FamilyManagement } from './FamilyManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,20 +28,17 @@ interface FamilyMember {
 interface UserHeaderProps {
   selectedView: 'me' | 'spouse' | 'family';
   onViewChange: (view: 'me' | 'spouse' | 'family') => void;
-  onDataExport: () => void;
-  onDataImport: () => void;
 }
 
 export const UserHeader: React.FC<UserHeaderProps> = ({
   selectedView,
-  onViewChange,
-  onDataExport,
-  onDataImport
+  onViewChange
 }) => {
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [showFamilyDialog, setShowFamilyDialog] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -163,7 +162,7 @@ export const UserHeader: React.FC<UserHeaderProps> = ({
                   <SelectItem value="spouse">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
-                      아내 가계부
+                      배우자 가계부
                     </div>
                   </SelectItem>
                   <SelectItem value="family">
@@ -176,17 +175,21 @@ export const UserHeader: React.FC<UserHeaderProps> = ({
               </Select>
             </div>
 
-            {/* 데이터 관리 버튼들 */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={onDataExport}>
-                <Download className="h-4 w-4 mr-1" />
-                내보내기
-              </Button>
-              <Button variant="outline" size="sm" onClick={onDataImport}>
-                <Upload className="h-4 w-4 mr-1" />
-                가져오기
-              </Button>
-            </div>
+            {/* 가족 관리 버튼 */}
+            <Dialog open={showFamilyDialog} onOpenChange={setShowFamilyDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4 mr-1" />
+                  가족 관리
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>가족 구성원 관리</DialogTitle>
+                </DialogHeader>
+                <FamilyManagement />
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* 오른쪽: 로그아웃 */}
