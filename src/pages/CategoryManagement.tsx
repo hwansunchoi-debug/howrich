@@ -26,6 +26,7 @@ interface Transaction {
     color: string;
   };
   category_id?: string;
+  institution?: string;
 }
 
 interface Category {
@@ -707,7 +708,20 @@ export default function CategoryManagement() {
               </div>
             ) : (
               <div className="space-y-3">
-                {merchantGroups.map((group, index) => (
+                {merchantGroups.map((group, index) => {
+                  const incomeAmount = group.transactions
+                    .filter(t => t.type === 'income')
+                    .reduce((sum, t) => sum + Number(t.amount), 0);
+                  const expenseAmount = group.transactions
+                    .filter(t => t.type === 'expense')
+                    .reduce((sum, t) => sum + Number(t.amount), 0);
+                  const institutions = Array.from(new Set(
+                    group.transactions
+                      .map(t => t.institution)
+                      .filter(Boolean)
+                  ));
+                  
+                  return (
                   <div
                     key={group.merchant}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
@@ -761,13 +775,29 @@ export default function CategoryManagement() {
                           </Badge>
                         )}
                       </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-sm text-muted-foreground">
-                          총 {group.transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}원
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          최근: {new Date(group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('ko-KR')}
-                        </p>
+                      <div className="space-y-1 mt-2">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            {incomeAmount > 0 && (
+                              <p className="text-sm text-green-600">
+                                수입: {incomeAmount.toLocaleString()}원
+                              </p>
+                            )}
+                            {expenseAmount > 0 && (
+                              <p className="text-sm text-red-600">
+                                지출: {expenseAmount.toLocaleString()}원
+                              </p>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            최근: {new Date(group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('ko-KR')}
+                          </p>
+                        </div>
+                        {institutions.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            결제수단: {institutions.join(', ')}
+                          </p>
+                        )}
                       </div>
                     </div>
                     
@@ -783,7 +813,8 @@ export default function CategoryManagement() {
                       분류
                     </Button>
                   </div>
-                ))}
+                )})}
+                
               </div>
             )}
               </CardContent>
