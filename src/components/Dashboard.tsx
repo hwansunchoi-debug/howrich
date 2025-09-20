@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone } from "lucide-react";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { BudgetManager } from "./BudgetManager";
 import { supabase } from "@/integrations/supabase/client";
+import { smsService } from "@/services/smsService";
+import { useToast } from "@/hooks/use-toast";
+import { Capacitor } from "@capacitor/core";
 
 export const Dashboard = () => {
   const [monthlyData, setMonthlyData] = useState({
@@ -15,10 +18,35 @@ export const Dashboard = () => {
     balance: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchMonthlyData();
+    checkMobilePlatform();
   }, []);
+
+  const checkMobilePlatform = () => {
+    if (Capacitor.isNativePlatform()) {
+      setSmsEnabled(true);
+    }
+  };
+
+  const handleEnableSMS = async () => {
+    try {
+      await smsService.initializeSMSWatcher();
+      toast({
+        title: "SMS 자동 인식 활성화됨",
+        description: "이제 결제/이체 문자가 자동으로 거래내역에 등록됩니다.",
+      });
+    } catch (error) {
+      toast({
+        title: "SMS 권한 필요",
+        description: "SMS 읽기 권한을 허용해주세요.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const fetchMonthlyData = async () => {
     const currentYear = new Date().getFullYear();
@@ -74,6 +102,30 @@ export const Dashboard = () => {
           </div>
           <TransactionForm onTransactionAdded={fetchMonthlyData} />
         </div>
+
+        {/* SMS Auto Recognition */}
+        {smsEnabled && (
+          <Card className="bg-gradient-primary text-white shadow-elevated">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-white/90">SMS 자동 인식</CardTitle>
+              <Smartphone className="h-4 w-4 text-white/90" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-bold mb-2">스마트 거래내역 등록</div>
+              <p className="text-xs text-white/80 mb-4">
+                카드 결제, 계좌 이체 문자를 자동으로 인식하여 거래내역에 등록
+              </p>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleEnableSMS}
+                className="w-full"
+              >
+                SMS 자동 인식 활성화
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-3">
