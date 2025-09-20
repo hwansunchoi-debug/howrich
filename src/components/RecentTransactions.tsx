@@ -1,128 +1,128 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { MoreVertical, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArrowDownLeft, ArrowUpRight, MoreHorizontal } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const recentTransactions = [
-  {
-    id: 1,
-    type: "income" as const,
-    category: "급여",
-    description: "월급",
-    amount: 3000000,
-    date: "2024-01-15",
-    account: "우리은행",
-  },
-  {
-    id: 2,
-    type: "expense" as const,
-    category: "식비",
-    description: "마트 장보기",
-    amount: 127000,
-    date: "2024-01-14",
-    account: "신한카드",
-  },
-  {
-    id: 3,
-    type: "expense" as const,
-    category: "교통비",
-    description: "지하철 정기권",
-    amount: 62000,
-    date: "2024-01-13",
-    account: "카카오뱅크",
-  },
-  {
-    id: 4,
-    type: "income" as const,
-    category: "부수입",
-    description: "프리랜서 작업",
-    amount: 500000,
-    date: "2024-01-12",
-    account: "토스뱅크",
-  },
-  {
-    id: 5,
-    type: "expense" as const,
-    category: "쇼핑",
-    description: "온라인 쇼핑",
-    amount: 89000,
-    date: "2024-01-11",
-    account: "현대카드",
-  },
-];
+interface Transaction {
+  id: string;
+  amount: number;
+  type: 'income' | 'expense';
+  description: string | null;
+  date: string;
+  categories: {
+    name: string;
+  } | null;
+}
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('ko-KR', {
-    style: 'currency',
-    currency: 'KRW',
-  }).format(amount);
-};
+interface RecentTransactionsProps {
+  onDataRefresh: () => void;
+}
 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-};
+export const RecentTransactions = ({ onDataRefresh }: RecentTransactionsProps) => {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export const RecentTransactions = () => {
+  useEffect(() => {
+    fetchRecentTransactions();
+  }, []);
+
+  const fetchRecentTransactions = async () => {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select(`
+        id,
+        amount,
+        type,
+        description,
+        date,
+        categories (
+          name
+        )
+      `)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error('거래내역 조회 실패:', error);
+      return;
+    }
+
+    setTransactions((data || []).map(transaction => ({
+      ...transaction,
+      type: transaction.type as 'income' | 'expense'
+    })));
+    setLoading(false);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('ko-KR', {
+      style: 'currency',
+      currency: 'KRW',
+    }).format(amount);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat('ko-KR', {
+      month: 'long',
+      day: 'numeric',
+    }).format(date);
+  };
+
   return (
     <Card className="shadow-card">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>최근 거래내역</CardTitle>
-        <Button variant="ghost" size="sm">
-          전체보기
-        </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {recentTransactions.map((transaction) => (
-          <div
-            key={transaction.id}
-            className="flex items-center justify-between p-3 rounded-lg bg-gradient-card hover:shadow-sm transition-shadow"
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full ${
-                  transaction.type === "income"
-                    ? "bg-income-light text-income"
-                    : "bg-expense-light text-expense"
-                }`}
-              >
-                {transaction.type === "income" ? (
-                  <ArrowDownRight className="h-4 w-4" />
-                ) : (
-                  <ArrowUpRight className="h-4 w-4" />
-                )}
+      <CardContent>
+        <ScrollArea className="h-[400px] pr-4">
+          <div className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                거래내역을 불러오는 중...
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">{transaction.description}</p>
-                  <Badge variant="secondary" className="text-xs">
-                    {transaction.category}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{transaction.account}</span>
-                  <span>•</span>
-                  <span>{formatDate(transaction.date)}</span>
-                </div>
+            ) : transactions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                거래내역이 없습니다.
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <p
-                  className={`font-semibold ${
-                    transaction.type === "income" ? "text-income" : "text-expense"
-                  }`}
+            ) : (
+              transactions.map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                 >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatCurrency(transaction.amount)}
-                </p>
-              </div>
-              <Button variant="ghost" size="sm">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </div>
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-full ${
+                      transaction.type === 'income' 
+                        ? 'bg-income-light text-income' 
+                        : 'bg-expense-light text-expense'
+                    }`}>
+                      {transaction.type === 'income' ? (
+                        <ArrowUpRight className="h-4 w-4" />
+                      ) : (
+                        <ArrowDownLeft className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{transaction.categories?.name || '카테고리 없음'}</div>
+                      <div className="text-xs text-muted-foreground">{transaction.description || '설명 없음'}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`font-semibold text-sm ${
+                      transaction.type === 'income' ? 'text-income' : 'text-expense'
+                    }`}>
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{formatDate(transaction.date)}</div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        ))}
+        </ScrollArea>
       </CardContent>
     </Card>
   );

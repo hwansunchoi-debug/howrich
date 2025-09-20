@@ -1,15 +1,55 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
+import { TransactionForm } from "./TransactionForm";
+import { BudgetManager } from "./BudgetManager";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Dashboard = () => {
-  // 임시 데이터 - 실제 구현시 Supabase에서 가져올 예정
-  const monthlyData = {
-    income: 4500000,
-    expense: 3200000,
-    balance: 1300000,
+  const [monthlyData, setMonthlyData] = useState({
+    income: 0,
+    expense: 0,
+    balance: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMonthlyData();
+  }, []);
+
+  const fetchMonthlyData = async () => {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    
+    // 이번 달 수입 조회
+    const { data: incomeData } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('type', 'income')
+      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
+      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+    
+    // 이번 달 지출 조회
+    const { data: expenseData } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('type', 'expense')
+      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
+      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+
+    const totalIncome = incomeData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
+    const totalExpense = expenseData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
+
+    setMonthlyData({
+      income: totalIncome,
+      expense: totalExpense,
+      balance: totalIncome - totalExpense,
+    });
+    
+    setLoading(false);
   };
 
   const formatCurrency = (amount: number) => {
@@ -32,10 +72,7 @@ export const Dashboard = () => {
               {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 재무현황
             </p>
           </div>
-          <Button className="bg-gradient-primary hover:opacity-90 transition-opacity">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            거래내역 추가
-          </Button>
+          <TransactionForm onTransactionAdded={fetchMonthlyData} />
         </div>
 
         {/* Summary Cards */}
@@ -46,8 +83,10 @@ export const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-white/90" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(monthlyData.income)}</div>
-              <p className="text-xs text-white/80">전월 대비 +5.2%</p>
+              <div className="text-2xl font-bold">
+                {loading ? '로딩 중...' : formatCurrency(monthlyData.income)}
+              </div>
+              <p className="text-xs text-white/80">이번 달 총 수입</p>
             </CardContent>
           </Card>
 
@@ -57,8 +96,10 @@ export const Dashboard = () => {
               <TrendingDown className="h-4 w-4 text-expense" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-expense">{formatCurrency(monthlyData.expense)}</div>
-              <p className="text-xs text-muted-foreground">전월 대비 -2.1%</p>
+              <div className="text-2xl font-bold text-expense">
+                {loading ? '로딩 중...' : formatCurrency(monthlyData.expense)}
+              </div>
+              <p className="text-xs text-muted-foreground">이번 달 총 지출</p>
             </CardContent>
           </Card>
 
@@ -68,19 +109,22 @@ export const Dashboard = () => {
               <Wallet className="h-4 w-4 text-white/90" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(monthlyData.balance)}</div>
-              <p className="text-xs text-white/80">목표 대비 87%</p>
+              <div className="text-2xl font-bold">
+                {loading ? '로딩 중...' : formatCurrency(monthlyData.balance)}
+              </div>
+              <p className="text-xs text-white/80">이번 달 순잔액</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Charts and Transactions */}
         <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <ExpenseChart />
+          <div className="lg:col-span-2 space-y-6">
+            <ExpenseChart onDataRefresh={fetchMonthlyData} />
+            <BudgetManager />
           </div>
           <div>
-            <RecentTransactions />
+            <RecentTransactions onDataRefresh={fetchMonthlyData} />
           </div>
         </div>
 
