@@ -219,7 +219,7 @@ export const YearlyChart = () => {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-muted-foreground">2025년 월 평균 지출액</span>
               <span className="text-lg font-bold text-destructive">
-                {monthlyAverage.toLocaleString()}원
+                {Math.floor(monthlyAverage).toLocaleString()}원
               </span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">

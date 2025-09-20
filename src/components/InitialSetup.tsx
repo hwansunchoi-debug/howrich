@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
   Settings, 
   FileText, 
@@ -12,10 +16,13 @@ import {
   BarChart3, 
   CheckCircle,
   AlertCircle,
-  Calendar,
+  Calendar as CalendarIcon,
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { TransactionUpload } from './TransactionUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +67,7 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [setupCompleted, setSetupCompleted] = useState(false);
+  const [cutoffDate, setCutoffDate] = useState<Date | undefined>(new Date());
 
   useEffect(() => {
     if (user) {
@@ -148,12 +156,17 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('setup_completed')
+        .select('setup_completed, initial_data_cutoff_date')
         .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
       setSetupCompleted(data?.setup_completed || false);
+      
+      // 기존 기준일 불러오기
+      if (data?.initial_data_cutoff_date) {
+        setCutoffDate(new Date(data.initial_data_cutoff_date));
+      }
     } catch (error) {
       console.error('설정 상태 확인 실패:', error);
     }
@@ -211,7 +224,8 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
         .upsert({
           user_id: user.id,
           setup_completed: true,
-          setup_completion_date: new Date().toISOString()
+          setup_completion_date: new Date().toISOString(),
+          initial_data_cutoff_date: cutoffDate?.toISOString().split('T')[0]
         });
 
       if (error) throw error;
@@ -298,6 +312,57 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
       </div>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
+        {/* 기준일 설정 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              자동 인식 시작 기준일
+            </CardTitle>
+            <CardDescription>
+              이 날짜부터 SMS와 앱 알림을 통해 자동으로 거래내역을 인식합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>기준일 선택</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full max-w-md justify-start text-left font-normal",
+                        !cutoffDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {cutoffDate ? format(cutoffDate, "yyyy년 MM월 dd일", { locale: ko }) : "날짜를 선택하세요"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={cutoffDate}
+                      onSelect={setCutoffDate}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">
+                  <strong>권장:</strong> 오늘 날짜 또는 이번 달 1일을 선택하시면,
+                  앞으로 발생하는 모든 거래가 자동으로 기록됩니다.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 시스템 현황 */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -466,7 +531,7 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
                 <div>
                   <h3 className="text-lg font-semibold">초기 설정을 완료하세요</h3>
                   <p className="text-muted-foreground mt-2">
-                    과거 거래내역 업로드가 완료되면 상단의 "설정 완료" 버튼을 눌러 초기 설정을 마무리하세요.
+                    기준일 설정과 과거 거래내역 업로드가 완료되면 상단의 "설정 완료" 버튼을 눌러 초기 설정을 마무리하세요.
                   </p>
                 </div>
                 <Button onClick={handleCompleteSetup} size="lg" className="mt-4">

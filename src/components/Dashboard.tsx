@@ -472,8 +472,8 @@ export const Dashboard = () => {
 
         {/* Charts and Transactions */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <ExpenseChart onDataRefresh={fetchMonthlyData} />
           <AssetTrendChart2025Enhanced />
+          <ExpenseChart onDataRefresh={fetchMonthlyData} />
         </div>
         
         <div className="grid gap-6 lg:grid-cols-2">
