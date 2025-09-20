@@ -15,7 +15,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'other';
   user_id?: string;
 }
 
@@ -24,7 +24,7 @@ interface Transaction {
   description: string;
   amount: number;
   date: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'other';
   category?: {
     id: string;
     name: string;
@@ -58,7 +58,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
   const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryType, setNewCategoryType] = useState<'income' | 'expense'>('expense');
+  const [newCategoryType, setNewCategoryType] = useState<'income' | 'expense' | 'other'>('expense');
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6');
   const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([]);
   
@@ -201,7 +201,10 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
   const handleCategoryClick = (category: Category) => {
     if (category.type === 'income') {
       navigate(`/income?category=${category.id}`);
+    } else if (category.type === 'expense') {
+      navigate(`/expense?category=${category.id}`);
     } else {
+      // 기타 카테고리는 일반 거래내역 페이지로 이동
       navigate(`/expense?category=${category.id}`);
     }
   };
@@ -383,13 +386,14 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
                   
                   <div>
                     <label className="text-sm font-medium mb-2 block">유형</label>
-                    <Select value={newCategoryType} onValueChange={(value) => setNewCategoryType(value as 'income' | 'expense')}>
+                    <Select value={newCategoryType} onValueChange={(value) => setNewCategoryType(value as 'income' | 'expense' | 'other')}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="expense">지출</SelectItem>
                         <SelectItem value="income">수입</SelectItem>
+                        <SelectItem value="other">기타</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -440,7 +444,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
                     <div className="flex items-center gap-2">
                       <h3 className="font-medium">{stat.category.name}</h3>
                       <Badge variant={stat.category.type === 'income' ? 'default' : 'outline'}>
-                        {stat.category.type === 'income' ? '수입' : '지출'}
+                        {stat.category.type === 'income' ? '수입' : stat.category.type === 'expense' ? '지출' : '기타'}
                       </Badge>
                       {stat.category.user_id === null && (
                         <Badge variant="secondary" className="text-xs">

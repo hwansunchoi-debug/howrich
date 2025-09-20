@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 interface Category {
   id: string;
   name: string;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'other';
   color: string;
   icon: string;
 }
@@ -23,7 +23,7 @@ interface TransactionFormProps {
 
 export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) => {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<'income' | 'expense'>('expense');
+  const [type, setType] = useState<'income' | 'expense' | 'other'>('expense');
   const [amount, setAmount] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
@@ -64,7 +64,7 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
 
     setCategories(uniqueCategories.map(cat => ({
       ...cat,
-      type: cat.type as 'income' | 'expense'
+      type: cat.type as 'income' | 'expense' | 'other'
     })));
   };
 
@@ -195,13 +195,14 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label>거래 유형</Label>
-            <Select value={type} onValueChange={(value: 'income' | 'expense') => setType(value)}>
+            <Select value={type} onValueChange={(value: 'income' | 'expense' | 'other') => setType(value)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="income">수입</SelectItem>
                 <SelectItem value="expense">지출</SelectItem>
+                <SelectItem value="other">기타</SelectItem>
               </SelectContent>
             </Select>
           </div>
