@@ -110,8 +110,10 @@ export default function CategoryManagement() {
   const groupTransactionsByMerchant = async () => {
     let filteredTransactions = transactions;
 
-    // 카테고리 필터링
-    if (selectedCategory === 'uncategorized') {
+    // 기본적으로 미분류 거래만 보여주기 (카테고리 분류가 완료된 가맹점은 숨기기)
+    if (selectedCategory === 'all') {
+      filteredTransactions = transactions.filter(t => !t.category_id);
+    } else if (selectedCategory === 'uncategorized') {
       filteredTransactions = transactions.filter(t => !t.category_id);
     } else if (selectedCategory !== 'all') {
       filteredTransactions = transactions.filter(t => t.category?.id === selectedCategory);
@@ -313,6 +315,68 @@ export default function CategoryManagement() {
       setNewCategoryId('');
     } catch (error) {
       console.error('카테고리 일괄 적용 실패:', error);
+      toast({
+        title: "오류",
+        description: "카테고리 적용에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSuggestedCategoryClick = async (merchant: MerchantGroup, suggestedCategory: string) => {
+    // 추천 카테고리명으로 실제 카테고리 ID 찾기
+    const category = categories.find(c => c.name === suggestedCategory && c.type === merchant.transactions[0]?.type);
+    if (!category) {
+      toast({
+        title: "오류",
+        description: "해당 카테고리를 찾을 수 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const similarMerchants = findSimilarMerchants(merchant.merchant);
+      const allMerchants = [merchant.merchant, ...similarMerchants];
+      
+      // 모든 유사한 가맹점의 거래들 찾기
+      const transactionsToUpdate = merchantGroups
+        .filter(group => allMerchants.includes(group.merchant))
+        .flatMap(group => group.transactions)
+        .map(t => t.id);
+
+      // 일괄 업데이트
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: category.id })
+        .in('id', transactionsToUpdate);
+
+      if (error) throw error;
+
+      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      for (const merchantName of allMerchants) {
+        const { error: mappingError } = await supabase
+          .from('merchant_category_mappings')
+          .upsert({
+            user_id: user?.id,
+            merchant_name: merchantName,
+            category_id: category.id
+          });
+        
+        if (mappingError) {
+          console.error('가맹점 매핑 저장 실패:', mappingError);
+        }
+      }
+
+      toast({
+        title: "카테고리 자동 적용 완료",
+        description: `${transactionsToUpdate.length}개의 거래에 "${suggestedCategory}" 카테고리가 적용되었습니다.`,
+      });
+
+      // 데이터 새로고침
+      fetchTransactions();
+    } catch (error) {
+      console.error('카테고리 자동 적용 실패:', error);
       toast({
         title: "오류",
         description: "카테고리 적용에 실패했습니다.",
@@ -563,7 +627,11 @@ export default function CategoryManagement() {
                           </Badge>
                         )}
                         {group.suggestedCategory && !group.transactions[0]?.category && (
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge 
+                            variant="secondary" 
+                            className="text-xs cursor-pointer hover:bg-blue-200 transition-colors"
+                            onClick={() => handleSuggestedCategoryClick(group, group.suggestedCategory!)}
+                          >
                             추천: {group.suggestedCategory}
                           </Badge>
                         )}
