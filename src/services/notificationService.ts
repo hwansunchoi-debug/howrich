@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { smsParser } from './smsParser';
+import { duplicateDetector } from './duplicateDetector';
 
 interface NotificationData {
   title: string;
@@ -21,7 +22,11 @@ export class NotificationService {
     'com.wooricard.wpay',          // 우리페이
     'com.kbcard.cxh.appcard',      // KB페이
     'com.shinhancard.smartshinhan', // 신한 페이판
-    'com.hyundaicard.appcard'       // 현대카드 앱카드
+    'com.hyundaicard.appcard',     // 현대카드 앱카드
+    'com.nh.cashcardapp',          // 농협스마트뱅킹
+    'com.kbstar.kbbank',           // KB스타뱅킹
+    'com.shinhan.sbanking',        // 신한 쏠(SOL)
+    'com.wooribank.smart.npib'     // 우리원뱅킹
   ];
 
   private paymentPatterns = {
@@ -37,7 +42,7 @@ export class NotificationService {
     },
     토스: {
       titlePattern: /토스|Toss/i,
-      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제|([^\d\s]+)에서\s+([\d,]+)원/,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제|([^\d\s]+)에서\s+([\d,]+)원.*?결제|([^\d\s]+)\s+([\d,]+)원\s+결제/,
       type: 'expense' as const
     },
     페이코: {
@@ -48,6 +53,26 @@ export class NotificationService {
     삼성페이: {
       titlePattern: /삼성페이|Samsung Pay/i,
       textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    농협스마트뱅킹: {
+      titlePattern: /농협|NH|스마트뱅킹/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원.*?([^\d\s]+)/,
+      type: 'expense' as const // 입금/출금 별도 판단 필요
+    },
+    KB스타뱅킹: {
+      titlePattern: /KB|스타뱅킹/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    신한쏠: {
+      titlePattern: /신한|SOL|쏠/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    우리원뱅킹: {
+      titlePattern: /우리|원뱅킹/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
       type: 'expense' as const
     }
   };
@@ -122,6 +147,20 @@ export class NotificationService {
 
       console.log('결제 알림 파싱됨:', parsed);
       
+      // 중복 체크
+      const isDuplicate = await duplicateDetector.isDuplicate({
+        amount: parsed.amount,
+        merchant: parsed.merchant,
+        type: parsed.type,
+        timestamp: parsed.timestamp,
+        source: 'notification'
+      });
+
+      if (isDuplicate) {
+        console.log('중복 거래 감지됨, 스킵:', parsed.merchant, parsed.amount);
+        return;
+      }
+      
       // 카테고리 ID 찾기
       const categoryId = await this.findOrCreateCategory(parsed.category || '기타', parsed.type);
       
@@ -156,9 +195,51 @@ export class NotificationService {
         const textMatch = notification.text.match(config.textPattern);
         
         if (textMatch) {
-          const merchant = textMatch[1] || textMatch[3] || '알 수 없음';
-          const amountStr = textMatch[2] || textMatch[4];
+          let merchant = '';
+          let amountStr = '';
+          
+          // 토스의 다양한 패턴 처리
+          if (serviceName === '토스') {
+            if (textMatch[1] && textMatch[2]) {
+              merchant = textMatch[1];
+              amountStr = textMatch[2];
+            } else if (textMatch[3] && textMatch[4]) {
+              merchant = textMatch[3];
+              amountStr = textMatch[4];
+            } else if (textMatch[5] && textMatch[6]) {
+              merchant = textMatch[5];
+              amountStr = textMatch[6];
+            }
+          }
+          // 농협, KB, 신한, 우리은행 패턴 처리
+          else if (serviceName.includes('뱅킹') || serviceName.includes('스타') || serviceName.includes('쏠') || serviceName.includes('원뱅킹')) {
+            if (textMatch[1] && textMatch[2]) {
+              merchant = textMatch[1];
+              amountStr = textMatch[2];
+            } else if (textMatch[3] && textMatch[4]) {
+              amountStr = textMatch[3];
+              merchant = textMatch[4];
+            }
+          }
+          // 일반 결제 서비스 패턴
+          else {
+            merchant = textMatch[1] || '알 수 없음';
+            amountStr = textMatch[2];
+          }
+          
+          if (!merchant || !amountStr) {
+            continue; // 파싱 실패 시 다음 패턴 시도
+          }
+          
           const amount = parseInt(amountStr.replace(/,/g, ''));
+          
+          // 입금/출금 구분 (은행 앱의 경우)
+          let type: 'income' | 'expense' = config.type;
+          if (notification.text.includes('입금') || notification.text.includes('받은돈')) {
+            type = 'income';
+          } else if (notification.text.includes('출금') || notification.text.includes('결제') || notification.text.includes('송금')) {
+            type = 'expense';
+          }
           
           // 카테고리 자동 분류
           const category = this.categorizeByMerchant(merchant);
@@ -167,7 +248,7 @@ export class NotificationService {
             service: serviceName,
             merchant: merchant.trim(),
             amount,
-            type: config.type,
+            type,
             category,
             timestamp: notification.timestamp
           };

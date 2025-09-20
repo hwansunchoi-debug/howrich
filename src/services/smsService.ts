@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { smsParser } from './smsParser';
+import { duplicateDetector } from './duplicateDetector';
 
 declare global {
   interface Window {
@@ -118,6 +119,21 @@ export class SMSService {
       }
 
       console.log('거래내역 파싱됨:', parsed);
+      
+      // 중복 체크
+      const isDuplicate = await duplicateDetector.isDuplicate({
+        amount: parsed.amount,
+        merchant: parsed.merchant,
+        type: parsed.type,
+        timestamp: parsed.timestamp,
+        source: 'sms'
+      });
+
+      if (isDuplicate) {
+        console.log('중복 거래 감지됨, 스킵:', parsed.merchant, parsed.amount);
+        this.lastProcessedTime = smsData.date;
+        return;
+      }
       
       // 카테고리 ID 찾기
       const categoryId = await this.findOrCreateCategory(parsed.category || '기타', parsed.type);
