@@ -64,6 +64,7 @@ export default function ExpenseDetails() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [bulkCategoryType, setBulkCategoryType] = useState<'expense' | 'other'>('other');
+  const [bulkCategoryId, setBulkCategoryId] = useState<string>('');
   
   // URL 파라미터에서 카테고리 필터 읽기
   const categoryFromUrl = searchParams.get('category');
@@ -219,16 +220,30 @@ export default function ExpenseDetails() {
     if (selectedTransactions.size === 0) return;
 
     try {
+      // 선택된 거래들이 현재 필터링된 목록에 있는지 확인
+      const validTransactionIds = Array.from(selectedTransactions).filter(id => 
+        transactions.some(t => t.id === id)
+      );
+
+      if (validTransactionIds.length === 0) {
+        toast({
+          title: "오류",
+          description: "선택된 거래가 현재 필터 조건에 맞지 않습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('transactions')
         .update({ type: bulkCategoryType })
-        .in('id', Array.from(selectedTransactions));
+        .in('id', validTransactionIds);
 
       if (error) throw error;
 
       toast({
         title: "대분류 수정 완료",
-        description: `${selectedTransactions.size}건의 거래 대분류가 ${bulkCategoryType === 'expense' ? '지출' : '기타'}로 변경되었습니다.`,
+        description: `${validTransactionIds.length}건의 거래 대분류가 ${bulkCategoryType === 'expense' ? '지출' : '기타'}로 변경되었습니다.`,
       });
 
       // 목록 새로고침 및 선택 해제
@@ -240,6 +255,104 @@ export default function ExpenseDetails() {
       toast({
         title: "오류",
         description: "대분류 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkCategoryUpdate = async () => {
+    if (selectedTransactions.size === 0 || !bulkCategoryId) return;
+
+    try {
+      // 선택된 거래들이 현재 필터링된 목록에 있는지 확인
+      const validTransactionIds = Array.from(selectedTransactions).filter(id => 
+        transactions.some(t => t.id === id)
+      );
+
+      if (validTransactionIds.length === 0) {
+        toast({
+          title: "오류",
+          description: "선택된 거래가 현재 필터 조건에 맞지 않습니다.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: bulkCategoryId })
+        .in('id', validTransactionIds);
+
+      if (error) throw error;
+
+      const categoryName = categories.find(c => c.id === bulkCategoryId)?.name || '선택된 카테고리';
+      toast({
+        title: "카테고리 수정 완료",
+        description: `${validTransactionIds.length}건의 거래 카테고리가 ${categoryName}로 변경되었습니다.`,
+      });
+
+      // 목록 새로고침 및 선택 해제
+      fetchExpenseTransactions();
+      setSelectedTransactions(new Set());
+      setBulkCategoryId('');
+    } catch (error) {
+      console.error('카테고리 수정 실패:', error);
+      toast({
+        title: "오류",
+        description: "카테고리 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInlineTypeUpdate = async (transactionId: string, newType: 'expense' | 'other') => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ type: newType })
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "대분류 수정 완료",
+        description: `거래 대분류가 ${newType === 'expense' ? '지출' : '기타'}로 변경되었습니다.`,
+      });
+
+      // 목록 새로고침
+      fetchExpenseTransactions();
+    } catch (error) {
+      console.error('대분류 수정 실패:', error);
+      toast({
+        title: "오류",
+        description: "대분류 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInlineCategoryUpdate = async (transactionId: string, categoryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: categoryId })
+        .eq('id', transactionId);
+
+      if (error) throw error;
+
+      const categoryName = categories.find(c => c.id === categoryId)?.name || '선택된 카테고리';
+      toast({
+        title: "카테고리 수정 완료",
+        description: `거래 카테고리가 ${categoryName}로 변경되었습니다.`,
+      });
+
+      // 목록 새로고침
+      fetchExpenseTransactions();
+    } catch (error) {
+      console.error('카테고리 수정 실패:', error);
+      toast({
+        title: "오류",
+        description: "카테고리 수정에 실패했습니다.",
         variant: "destructive",
       });
     }
@@ -467,43 +580,50 @@ export default function ExpenseDetails() {
                 </Button>
                 
                 {selectedTransactions.size > 0 && (
-                  <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        대분류 수정 ({selectedTransactions.size}건)
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">대분류:</span>
+                      <Select value={bulkCategoryType} onValueChange={(value: 'expense' | 'other') => setBulkCategoryType(value)}>
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="expense">지출</SelectItem>
+                          <SelectItem value="other">기타</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" onClick={handleBulkCategoryTypeUpdate}>
+                        수정 ({selectedTransactions.size}건)
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>대분류 일괄 수정</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          선택된 {selectedTransactions.size}건의 거래를 어떤 대분류로 변경하시겠습니까?
-                        </p>
-                        <div>
-                          <label className="text-sm font-medium mb-2 block">대분류</label>
-                          <Select value={bulkCategoryType} onValueChange={(value: 'expense' | 'other') => setBulkCategoryType(value)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="expense">지출</SelectItem>
-                              <SelectItem value="other">기타</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>
-                            취소
-                          </Button>
-                          <Button onClick={handleBulkCategoryTypeUpdate}>
-                            수정
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">카테고리:</span>
+                      <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories
+                            .filter(cat => selectedCategoryType === 'all' || cat.type === selectedCategoryType)
+                            .map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full" 
+                                  style={{ backgroundColor: category.color }}
+                                />
+                                {category.name}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button size="sm" onClick={handleBulkCategoryUpdate} disabled={!bulkCategoryId}>
+                        수정 ({selectedTransactions.size}건)
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -582,14 +702,45 @@ export default function ExpenseDetails() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium">{transaction.description}</h3>
-                          {transaction.category && (
-                            <Badge variant="outline" className="text-xs">
-                              {transaction.category.name}
-                            </Badge>
-                          )}
-                          <Badge variant={transaction.type === 'expense' ? 'destructive' : 'secondary'} className="text-xs">
-                            {transaction.type === 'expense' ? '지출' : '기타'}
-                          </Badge>
+                          
+                          {/* 인라인 카테고리 수정 */}
+                          <Select 
+                            value={transaction.category_id || ''} 
+                            onValueChange={(value) => handleInlineCategoryUpdate(transaction.id, value)}
+                          >
+                            <SelectTrigger className="w-28 h-6 text-xs">
+                              <SelectValue placeholder="카테고리" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories
+                                .filter(cat => cat.type === transaction.type)
+                                .map((category) => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="w-2 h-2 rounded-full" 
+                                      style={{ backgroundColor: category.color }}
+                                    />
+                                    {category.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          {/* 인라인 대분류 수정 */}
+                          <Select 
+                            value={transaction.type} 
+                            onValueChange={(value: 'expense' | 'other') => handleInlineTypeUpdate(transaction.id, value)}
+                          >
+                            <SelectTrigger className="w-16 h-6 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="expense">지출</SelectItem>
+                              <SelectItem value="other">기타</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{transaction.date}</span>
@@ -609,62 +760,6 @@ export default function ExpenseDetails() {
                       )}>
                         -{Math.abs(transaction.amount).toLocaleString()}원
                       </span>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingTransaction(transaction);
-                              setSelectedCategoryId(transaction.category_id || '');
-                            }}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>카테고리 수정</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="text-sm font-medium mb-2 block">거래내역</label>
-                              <p className="text-sm text-muted-foreground">{transaction.description}</p>
-                            </div>
-                            <div>
-                              <label className="text-sm font-medium mb-2 block">카테고리</label>
-                              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="카테고리 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {categories
-                                    .filter(cat => cat.type === transaction.type)
-                                    .map((category) => (
-                                    <SelectItem key={category.id} value={category.id}>
-                                      <div className="flex items-center gap-2">
-                                        <div 
-                                          className="w-3 h-3 rounded-full" 
-                                          style={{ backgroundColor: category.color }}
-                                        />
-                                        {category.name}
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <Button variant="outline" onClick={() => setEditingTransaction(null)}>
-                                취소
-                              </Button>
-                              <Button onClick={handleCategoryUpdate} disabled={!selectedCategoryId}>
-                                수정
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
                     </div>
                   </div>
                 ))}
