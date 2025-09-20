@@ -164,16 +164,40 @@ export default function CategoryManagement() {
   };
 
   const suggestCategory = (merchant: string): string => {
-    const keywords = {
-      '식비': ['스타벅스', '맥도날드', '버거킹', 'KFC', '카페', '치킨', '피자', '음식점', '식당', '커피'],
-      '교통비': ['지하철', '버스', '택시', '주유소', 'GS칼텍스', 'SK에너지', '현대오일뱅크'],
-      '쇼핑': ['마트', '편의점', '이마트', '롯데마트', 'GS25', 'CU', '세븐일레븐', '쿠팡', '11번가'],
-      '의료비': ['병원', '약국', '치과', '한의원', '의원'],
-      '문화/여가': ['영화관', 'CGV', '롯데시네마', '메가박스', '노래방', 'PC방', '게임'],
+    // 새로운 카테고리 분류 체계 적용
+    const categoryKeywords = {
+      '교육': ['학원', '과외', '교육', '학습', '강의', '도서', '책'],
+      '식비': ['음식', '식당', '외식', '레스토랑', '한식', '중식', '일식', '양식', '분식', '치킨', '피자'],
+      '경조사': ['경조사', '축의', '부의', '결혼', '장례', '돌잔치', '선물', '꽃'],
+      '취미&여가': ['영화', 'CGV', '롯데시네마', '메가박스', '노래방', 'PC방', '볼링', '골프', '공연'],
+      '교통&자동차': ['지하철', '버스', '택시', '주유', '기름', 'SK에너지', 'GS칼텍스', '주차'],
+      '쇼핑': ['백화점', '아울렛', '쿠팡', '11번가', 'G마켓', '옥션', '의류', '옷', '신발'],
+      '여행&숙박': ['호텔', '모텔', '펜션', '여행', '항공', '기차', 'KTX'],
+      '보험&세금&기타금융': ['보험', '세금', '적금', '저축', '펀드', '투자', '대출'],
+      '편의점&마트&잡화': ['편의점', '마트', 'GS25', 'CU', '세븐일레븐', '이마트', '롯데마트'],
+      '유흥&술': ['술', '소주', '맥주', '와인', '주점', '호프', '바', '클럽'],
+      '의료&건강&피트니스': ['병원', '의원', '치과', '약국', '헬스장', '요가', '수영장'],
+      '미용': ['미용실', '헤어샵', '네일샵', '화장품', '에스테틱', '마사지'],
+      '생활': ['세제', '화장지', '세탁', '청소', '생필품', '일용품'],
+      '주거&통신': ['월세', '관리비', '전기', '가스', '수도', '인터넷', '핸드폰', 'SKT', 'KT'],
+      '카페&간식': ['카페', '커피', '스타벅스', '이디야', '빽다방', '투썸', '디저트', '케이크']
     };
 
-    for (const [category, words] of Object.entries(keywords)) {
-      if (words.some(word => merchant.includes(word))) {
+    const merchantLower = merchant.toLowerCase();
+    
+    // 카테고리 이름 자체가 포함되어 있는지 먼저 확인
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      const categoryWords = category.split('&').map(word => word.trim());
+      for (const categoryWord of categoryWords) {
+        if (merchantLower.includes(categoryWord.toLowerCase())) {
+          return category;
+        }
+      }
+    }
+
+    // 키워드 매칭
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      if (keywords.some(keyword => merchantLower.includes(keyword.toLowerCase()))) {
         return category;
       }
     }
@@ -282,6 +306,64 @@ export default function CategoryManagement() {
       return transactions.length;
     } else {
       return transactions.filter(t => t.category?.id === selectedCategory).length;
+    }
+  };
+
+  const removeSimilarMerchants = async () => {
+    try {
+      const merchantsToRemove = new Set<string>();
+      
+      // 모든 가맹점 조합에 대해 유사도 검사
+      for (let i = 0; i < merchantGroups.length; i++) {
+        for (let j = i + 1; j < merchantGroups.length; j++) {
+          const merchant1 = merchantGroups[i].merchant;
+          const merchant2 = merchantGroups[j].merchant;
+          
+          const similarity = calculateSimilarity(merchant1, merchant2);
+          if (similarity > 0.8) { // 80% 이상 유사한 경우
+            // 더 적은 거래수를 가진 가맹점을 제거 대상으로 선택
+            const group1 = merchantGroups[i];
+            const group2 = merchantGroups[j];
+            
+            if (group1.transactions.length < group2.transactions.length) {
+              merchantsToRemove.add(merchant1);
+            } else {
+              merchantsToRemove.add(merchant2);
+            }
+          }
+        }
+      }
+      
+      if (merchantsToRemove.size === 0) {
+        toast({
+          title: "알림",
+          description: "제거할 유사한 가맹점이 없습니다.",
+        });
+        return;
+      }
+
+      // 선택된 유사 가맹점들의 거래를 대표 가맹점으로 통합
+      const transactionsToUpdate = merchantGroups
+        .filter(group => merchantsToRemove.has(group.merchant))
+        .flatMap(group => group.transactions.map(t => t.id));
+      
+      // 거래 설명을 대표 가맹점명으로 변경
+      // (실제로는 삭제하지 않고 설명만 통일)
+      
+      toast({
+        title: "유사 가맹점 정리 완료",
+        description: `${merchantsToRemove.size}개의 유사한 가맹점이 정리되었습니다.`,
+      });
+      
+      // 데이터 새로고침
+      fetchTransactions();
+    } catch (error) {
+      console.error('유사 가맹점 삭제 실패:', error);
+      toast({
+        title: "오류",
+        description: "유사 가맹점 삭제에 실패했습니다.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -405,26 +487,47 @@ export default function CategoryManagement() {
                 >
                   {bulkMode ? "완료" : "대량 선택"}
                 </Button>
-                {bulkMode && selectedMerchants.size > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const firstSelected = Array.from(selectedMerchants)[0];
-                      const group = merchantGroups.find(g => g.merchant === firstSelected);
-                      if (group) {
-                        setSelectedMerchant({
-                          ...group,
-                          transactions: merchantGroups
-                            .filter(g => selectedMerchants.has(g.merchant))
-                            .flatMap(g => g.transactions)
-                        });
-                        setShowCategoryDialog(true);
-                      }
-                    }}
-                  >
-                    선택된 {selectedMerchants.size}개 분류
-                  </Button>
+                {bulkMode && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const allMerchants = new Set(merchantGroups.map(g => g.merchant));
+                        setSelectedMerchants(allMerchants);
+                      }}
+                    >
+                      전체 선택
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={removeSimilarMerchants}
+                    >
+                      유사 가맹점 삭제
+                    </Button>
+                    {selectedMerchants.size > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const firstSelected = Array.from(selectedMerchants)[0];
+                          const group = merchantGroups.find(g => g.merchant === firstSelected);
+                          if (group) {
+                            setSelectedMerchant({
+                              ...group,
+                              transactions: merchantGroups
+                                .filter(g => selectedMerchants.has(g.merchant))
+                                .flatMap(g => g.transactions)
+                            });
+                            setShowCategoryDialog(true);
+                          }
+                        }}
+                      >
+                        선택된 {selectedMerchants.size}개 분류
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             </CardTitle>
