@@ -82,6 +82,7 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .or(`user_id.is.null,user_id.eq.${user?.id}`)
         .order('name');
 
       if (error) throw error;

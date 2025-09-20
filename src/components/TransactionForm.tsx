@@ -41,6 +41,7 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
       .from('categories')
       .select('*')
       .eq('type', type)
+      .or(`user_id.is.null,user_id.eq.${(await supabase.auth.getUser()).data.user?.id}`)
       .order('name');
 
     if (error) {

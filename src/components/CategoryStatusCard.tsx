@@ -9,6 +9,7 @@ import { Plus, Edit2, Trash2, BarChart3, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from '@/hooks/useUserRole';
+import { useNavigate } from 'react-router-dom';
 
 interface Category {
   id: string;
@@ -45,11 +46,16 @@ interface CategoryStats {
   count: number;
   totalAmount: number;
   percentage: number;
+  incomeCount: number;
+  expenseCount: number;
+  incomeAmount: number;
+  expenseAmount: number;
 }
 
 export default function CategoryStatusCard({ categories, transactions, user, onCategoriesChange }: CategoryStatusCardProps) {
   const { toast } = useToast();
   const { isMaster } = useUserRole();
+  const navigate = useNavigate();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'income' | 'expense'>('expense');
@@ -111,23 +117,40 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
       );
     }
     
-    const totalAmount = filteredTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-    
     const stats: CategoryStats[] = categories.map(category => {
       const categoryTransactions = filteredTransactions.filter(t => t.category?.id === category.id);
-      const count = categoryTransactions.length;
-      const categoryTotal = categoryTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const percentage = totalAmount > 0 ? (categoryTotal / totalAmount) * 100 : 0;
+      
+      // 수입/지출 분리 계산
+      const incomeTransactions = categoryTransactions.filter(t => t.type === 'income');
+      const expenseTransactions = categoryTransactions.filter(t => t.type === 'expense');
+      
+      const incomeCount = incomeTransactions.length;
+      const expenseCount = expenseTransactions.length;
+      const totalCount = categoryTransactions.length;
+      
+      const incomeAmount = incomeTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const expenseAmount = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalAmount = incomeAmount + expenseAmount;
+      
+      const totalFilteredAmount = filteredTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const percentage = totalFilteredAmount > 0 ? (totalAmount / totalFilteredAmount) * 100 : 0;
 
       return {
         category,
-        count,
-        totalAmount: categoryTotal,
-        percentage
+        count: totalCount,
+        totalAmount,
+        percentage,
+        incomeCount,
+        expenseCount,
+        incomeAmount,
+        expenseAmount
       };
     });
 
-    setCategoryStats(stats.sort((a, b) => b.totalAmount - a.totalAmount));
+    setCategoryStats(stats
+      .filter(stat => stat.count > 0) // 거래가 있는 카테고리만 표시
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+    );
   };
 
   const handleAddCategory = async () => {
@@ -172,6 +195,14 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
         description: "카테고리 추가에 실패했습니다.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleCategoryClick = (category: Category) => {
+    if (category.type === 'income') {
+      navigate(`/income?category=${category.id}`);
+    } else {
+      navigate(`/expense?category=${category.id}`);
     }
   };
 
@@ -228,8 +259,8 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-2">전체 카테고리</p>
-              <p className="text-2xl font-bold">{categories.length}개</p>
+              <p className="text-sm text-muted-foreground mb-2">활성 카테고리</p>
+              <p className="text-2xl font-bold">{categoryStats.length}개</p>
             </div>
           </CardContent>
         </Card>
@@ -239,7 +270,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">사용자 정의</p>
               <p className="text-2xl font-bold text-blue-600">
-                {categories.filter(c => c.user_id !== null).length}개
+                {categoryStats.filter(s => s.category.user_id !== null).length}개
               </p>
             </div>
           </CardContent>
@@ -250,7 +281,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">기본 카테고리</p>
               <p className="text-2xl font-bold text-green-600">
-                {categories.filter(c => c.user_id === null).length}개
+                {categoryStats.filter(s => s.category.user_id === null).length}개
               </p>
             </div>
           </CardContent>
@@ -397,7 +428,8 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
             {categoryStats.map((stat) => (
               <div
                 key={stat.category.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => handleCategoryClick(stat.category)}
               >
                 <div className="flex items-center gap-3 flex-1">
                   <div 
@@ -416,10 +448,26 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {stat.count}건 • {stat.totalAmount.toLocaleString()}원 
-                      {stat.percentage > 0 && ` • ${stat.percentage.toFixed(1)}%`}
-                    </p>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>
+                        총 {stat.count}건 • {stat.totalAmount.toLocaleString()}원 
+                        {stat.percentage > 0 && ` • ${stat.percentage.toFixed(1)}%`}
+                      </p>
+                      {(stat.incomeCount > 0 || stat.expenseCount > 0) && (
+                        <div className="flex gap-4 text-xs">
+                          {stat.incomeCount > 0 && (
+                            <span className="text-green-600">
+                              수입: {stat.incomeCount}건 • {stat.incomeAmount.toLocaleString()}원
+                            </span>
+                          )}
+                          {stat.expenseCount > 0 && (
+                            <span className="text-red-600">
+                              지출: {stat.expenseCount}건 • {stat.expenseAmount.toLocaleString()}원
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
@@ -428,7 +476,10 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDeleteCategory(stat.category)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCategory(stat.category);
+                      }}
                       disabled={stat.count > 0}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -440,7 +491,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
             
             {categoryStats.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                카테고리가 없습니다.
+                선택한 조건에 해당하는 카테고리가 없습니다.
               </div>
             )}
           </div>
