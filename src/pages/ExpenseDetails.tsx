@@ -34,6 +34,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
+  user_id?: string;
 }
 
 export default function ExpenseDetails() {
@@ -83,7 +84,21 @@ export default function ExpenseDetails() {
         .order('name');
 
       if (error) throw error;
-      setCategories(data || []);
+      
+      // 중복 카테고리 제거 (이름 기준으로, 사용자 카테고리 우선)
+      const uniqueCategories = data?.reduce((acc: Category[], current) => {
+        const existing = acc.find(cat => cat.name === current.name);
+        if (!existing) {
+          acc.push(current);
+        } else if (current.user_id && !existing.user_id) {
+          // 사용자 카테고리가 기본 카테고리보다 우선
+          const index = acc.findIndex(cat => cat.name === current.name);
+          acc[index] = current;
+        }
+        return acc;
+      }, []) || [];
+      
+      setCategories(uniqueCategories);
     } catch (error) {
       console.error('카테고리 조회 실패:', error);
     }

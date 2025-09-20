@@ -472,7 +472,7 @@ export const Dashboard = () => {
 
         {/* Charts and Transactions */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <AssetTrendChart2025Enhanced />
+          <YearlyChart />
           <ExpenseChart onDataRefresh={fetchMonthlyData} />
         </div>
         
@@ -484,7 +484,7 @@ export const Dashboard = () => {
         {/* Additional Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
           <AssetTrendChartEnhanced />
-          <YearlyChart />
+          <AssetTrendChart2025Enhanced />
         </div>
         
 

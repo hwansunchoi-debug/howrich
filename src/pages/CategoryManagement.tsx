@@ -156,13 +156,49 @@ export default function CategoryManagement() {
       groups[merchant].push(transaction);
     });
 
-    // MerchantGroup 배열로 변환하고 거래 수 기준으로 정렬
+    // 각 가맹점에 대해 기존 매핑 확인하고 자동 적용
     const merchantGroups = await Promise.all(
-      Object.entries(groups).map(async ([merchant, txs]) => ({
-        merchant,
-        transactions: txs,
-        suggestedCategory: await suggestCategory(merchant)
-      }))
+      Object.entries(groups).map(async ([merchant, txs]) => {
+        // 미분류 거래가 있는 경우에만 자동 매핑 확인
+        const uncategorizedTxs = txs.filter(t => !t.category_id);
+        
+        if (uncategorizedTxs.length > 0) {
+          const learnedCategoryId = await getLearnedCategory(merchant);
+          
+          if (learnedCategoryId) {
+            // 자동으로 매핑된 카테고리 적용
+            try {
+              const { error } = await supabase
+                .from('transactions')
+                .update({ category_id: learnedCategoryId })
+                .in('id', uncategorizedTxs.map(t => t.id));
+              
+              if (!error) {
+                // 거래 데이터 업데이트
+                uncategorizedTxs.forEach(t => {
+                  t.category_id = learnedCategoryId;
+                  const category = categories.find(c => c.id === learnedCategoryId);
+                  if (category) {
+                    t.category = {
+                      id: category.id,
+                      name: category.name,
+                      color: category.color
+                    };
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('자동 카테고리 적용 실패:', error);
+            }
+          }
+        }
+
+        return {
+          merchant,
+          transactions: txs,
+          suggestedCategory: await suggestCategory(merchant)
+        };
+      })
     );
 
     setMerchantGroups(merchantGroups.sort((a, b) => b.transactions.length - a.transactions.length));
