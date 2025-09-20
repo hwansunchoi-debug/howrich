@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit2, Trash2, BarChart3 } from "lucide-react";
+import { Plus, Edit2, Trash2, BarChart3, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from '@/hooks/useUserRole';
 
 interface Category {
   id: string;
@@ -29,6 +30,7 @@ interface Transaction {
     color: string;
   };
   category_id?: string;
+  user_id?: string;
 }
 
 interface CategoryStatusCardProps {
@@ -47,11 +49,18 @@ interface CategoryStats {
 
 export default function CategoryStatusCard({ categories, transactions, user, onCategoriesChange }: CategoryStatusCardProps) {
   const { toast } = useToast();
+  const { isMaster } = useUserRole();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'income' | 'expense'>('expense');
   const [newCategoryColor, setNewCategoryColor] = useState('#3b82f6');
   const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([]);
+  
+  // 필터 상태
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [userList, setUserList] = useState<any[]>([]);
 
   const predefinedColors = [
     '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
@@ -60,14 +69,52 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
 
   useEffect(() => {
     calculateCategoryStats();
-  }, [categories, transactions]);
+    if (isMaster) {
+      fetchUserList();
+    }
+  }, [categories, transactions, selectedUserId, selectedYear, selectedMonth, isMaster]);
+
+  const fetchUserList = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, email')
+        .order('display_name');
+      
+      if (error) throw error;
+      setUserList(data || []);
+    } catch (error) {
+      console.error('사용자 목록 조회 실패:', error);
+    }
+  };
 
   const calculateCategoryStats = () => {
-    const categorizedTransactions = transactions.filter(t => t.category_id);
-    const totalAmount = categorizedTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    // 필터 적용
+    let filteredTransactions = transactions.filter(t => t.category_id);
+    
+    // 사용자 필터
+    if (selectedUserId !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.user_id === selectedUserId);
+    }
+    
+    // 연도 필터
+    if (selectedYear !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => 
+        new Date(t.date).getFullYear().toString() === selectedYear
+      );
+    }
+    
+    // 월 필터
+    if (selectedMonth !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => 
+        (new Date(t.date).getMonth() + 1).toString() === selectedMonth
+      );
+    }
+    
+    const totalAmount = filteredTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
     
     const stats: CategoryStats[] = categories.map(category => {
-      const categoryTransactions = transactions.filter(t => t.category?.id === category.id);
+      const categoryTransactions = filteredTransactions.filter(t => t.category?.id === category.id);
       const count = categoryTransactions.length;
       const categoryTotal = categoryTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
       const percentage = totalAmount > 0 ? (categoryTotal / totalAmount) * 100 : 0;
@@ -209,6 +256,70 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
           </CardContent>
         </Card>
       </div>
+
+      {/* 필터 섹션 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            필터 옵션
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            {isMaster && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">사용자</label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="사용자 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {userList.map((user) => (
+                      <SelectItem key={user.user_id} value={user.user_id}>
+                        {user.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <div>
+              <label className="text-sm font-medium mb-2 block">연도</label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger>
+                  <SelectValue placeholder="연도 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="2023">2023년</SelectItem>
+                  <SelectItem value="2024">2024년</SelectItem>
+                  <SelectItem value="2025">2025년</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium mb-2 block">월</label>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger>
+                  <SelectValue placeholder="월 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {Array.from({length: 12}, (_, i) => (
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
+                      {i + 1}월
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 카테고리 목록 */}
       <Card>

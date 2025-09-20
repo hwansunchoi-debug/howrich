@@ -54,28 +54,93 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
     })));
   };
 
+  const extractMerchantName = (description: string): string => {
+    // 간단한 가맹점명 추출 로직 (실제로는 더 복잡할 수 있음)
+    const cleanedDescription = description
+      .replace(/[0-9]+[.*]?/g, '') // 숫자 제거
+      .replace(/승인|결제|구매|카드|체크|신용/g, '') // 결제 관련 단어 제거
+      .replace(/[^\w\s가-힣]/g, '') // 특수문자 제거
+      .trim();
+    
+    return cleanedDescription.split(' ')[0] || cleanedDescription;
+  };
+
+  const getMappedCategory = async (merchantName: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('merchant_category_mappings')
+        .select('category_id')
+        .eq('merchant_name', merchantName)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data?.category_id || null;
+    } catch (error) {
+      console.error('매핑 조회 실패:', error);
+      return null;
+    }
+  };
+
+  const saveMerchantMapping = async (merchantName: string, categoryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('merchant_category_mappings')
+        .upsert({
+          merchant_name: merchantName,
+          category_id: categoryId,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        }, {
+          onConflict: 'merchant_name,user_id'
+        });
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('매핑 저장 실패:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabase
-      .from('transactions')
-      .insert({
-        amount: parseFloat(amount),
-        type,
-        category_id: categoryId,
-        description: description || null,
-        date
-      });
+    try {
+      // 가맹점명 추출
+      let finalCategoryId = categoryId;
+      
+      if (description && !categoryId) {
+        const merchantName = extractMerchantName(description);
+        if (merchantName) {
+          const mappedCategoryId = await getMappedCategory(merchantName);
+          if (mappedCategoryId) {
+            finalCategoryId = mappedCategoryId;
+            toast({
+              title: "자동 분류 완료",
+              description: `"${merchantName}" 가맹점이 자동으로 분류되었습니다.`,
+            });
+          }
+        }
+      }
 
-    if (error) {
-      toast({
-        title: "오류",
-        description: "거래내역 추가에 실패했습니다.",
-        variant: "destructive",
-      });
-      console.error('거래내역 추가 실패:', error);
-    } else {
+      const { error } = await supabase
+        .from('transactions')
+        .insert({
+          amount: parseFloat(amount),
+          type,
+          category_id: finalCategoryId || null,
+          description: description || null,
+          date
+        });
+
+      if (error) throw error;
+
+      // 새로운 가맹점-카테고리 매핑 저장 (수동으로 카테고리를 선택한 경우)
+      if (description && categoryId) {
+        const merchantName = extractMerchantName(description);
+        if (merchantName) {
+          await saveMerchantMapping(merchantName, categoryId);
+        }
+      }
+
       toast({
         title: "성공",
         description: "거래내역이 추가되었습니다.",
@@ -83,6 +148,13 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
       setOpen(false);
       resetForm();
       onTransactionAdded();
+    } catch (error: any) {
+      toast({
+        title: "오류",
+        description: "거래내역 추가에 실패했습니다.",
+        variant: "destructive",
+      });
+      console.error('거래내역 추가 실패:', error);
     }
 
     setLoading(false);
@@ -134,9 +206,9 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
 
           <div className="space-y-2">
             <Label>카테고리</Label>
-            <Select value={categoryId} onValueChange={setCategoryId} required>
+            <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger>
-                <SelectValue placeholder="카테고리 선택" />
+                <SelectValue placeholder="카테고리 선택 (자동 분류 가능)" />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((category) => (
@@ -163,7 +235,7 @@ export const TransactionForm = ({ onTransactionAdded }: TransactionFormProps) =>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="거래내역에 대한 설명을 입력하세요"
+              placeholder="거래내역에 대한 설명을 입력하세요 (가맹점명 포함시 자동 분류됩니다)"
               rows={3}
             />
           </div>

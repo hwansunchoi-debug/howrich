@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import CategoryStatusCard from "@/components/CategoryStatusCard";
+import MerchantMappingCard from "@/components/MerchantMappingCard";
 
 interface Transaction {
   id: string;
@@ -574,19 +575,14 @@ export default function CategoryManagement() {
         </Card>
 
         {/* 탭 네비게이션 */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'merchants' | 'categories')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="merchants" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              가맹점별 거래 현황
-            </TabsTrigger>
-            <TabsTrigger value="categories" className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              카테고리 현황
-            </TabsTrigger>
+        <Tabs defaultValue="transactions" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="transactions">가맹점별 거래 현황</TabsTrigger>
+            <TabsTrigger value="categories">카테고리별 사용 현황</TabsTrigger>
+            <TabsTrigger value="mappings">가맹점 매핑 현황</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="merchants" className="space-y-6">
+          <TabsContent value="transactions" className="space-y-6">
             {/* 가맹점별 거래 리스트 */}
             <Card>
               <CardHeader>
@@ -749,8 +745,11 @@ export default function CategoryManagement() {
           </TabsContent>
 
           <TabsContent value="categories" className="space-y-6">
-            {/* 카테고리 현황 및 관리 */}
             <CategoryStatusCard categories={categories} transactions={transactions} user={user} onCategoriesChange={fetchCategories} />
+          </TabsContent>
+          
+          <TabsContent value="mappings" className="space-y-6">
+            <MerchantMappingCard user={user} />
           </TabsContent>
         </Tabs>
 
