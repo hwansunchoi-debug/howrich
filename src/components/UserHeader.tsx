@@ -4,8 +4,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { LogOut, Users, User, Settings } from 'lucide-react';
+import { LogOut, Users, User, Settings, Crown, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useUserRole } from '@/hooks/useUserRole';
 import { FamilyManagement } from './FamilyManagement';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,7 @@ interface UserProfile {
   display_name: string;
   email: string;
   avatar_url?: string;
+  role?: string;
 }
 
 interface FamilyMember {
@@ -35,6 +37,7 @@ export const UserHeader: React.FC<UserHeaderProps> = ({
   onViewChange
 }) => {
   const { user, signOut } = useAuth();
+  const { profile: userProfile, isMaster, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -133,63 +136,87 @@ export const UserHeader: React.FC<UserHeaderProps> = ({
             
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-semibold">{profile?.display_name || 'User'}</h2>
+                <h2 className="font-semibold">{userProfile?.display_name || 'User'}</h2>
                 <Badge variant="outline" className="text-xs">
                   {user?.email}
                 </Badge>
+                {isMaster && (
+                  <Badge variant="default" className="text-xs bg-gradient-to-r from-yellow-500 to-orange-500">
+                    <Crown className="h-3 w-3 mr-1" />
+                    마스터
+                  </Badge>
+                )}
+                {!isMaster && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Shield className="h-3 w-3 mr-1" />
+                    멤버
+                  </Badge>
+                )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {getViewLabel(selectedView)}
+                {isMaster ? getViewLabel(selectedView) : '내 가계부'}
               </p>
             </div>
           </div>
 
-          {/* 중앙: 뷰 선택 */}
+          {/* 중앙: 뷰 선택 (마스터만) */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedView} onValueChange={onViewChange}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="me">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      내 가계부
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="spouse">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      배우자 가계부
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="family">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      가족 가계부 
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {isMaster && (
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedView} onValueChange={onViewChange}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="me">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        내 가계부
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="spouse">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        배우자 가계부
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="family">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        가족 가계부 
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-            {/* 가족 관리 버튼 */}
-            <Dialog open={showFamilyDialog} onOpenChange={setShowFamilyDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-1" />
-                  가족 관리
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>가족 구성원 관리</DialogTitle>
-                </DialogHeader>
-                <FamilyManagement />
-              </DialogContent>
-            </Dialog>
+            {/* 가족 관리 버튼 (마스터만) */}
+            {isMaster && (
+              <Dialog open={showFamilyDialog} onOpenChange={setShowFamilyDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings className="h-4 w-4 mr-1" />
+                    가족 관리
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>가족 구성원 관리</DialogTitle>
+                  </DialogHeader>
+                  <FamilyManagement />
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* 일반 사용자 안내 */}
+            {!isMaster && (
+              <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-lg">
+                <Shield className="h-4 w-4 inline mr-2" />
+                본인 데이터만 조회 가능
+              </div>
+            )}
           </div>
 
           {/* 오른쪽: 로그아웃 */}

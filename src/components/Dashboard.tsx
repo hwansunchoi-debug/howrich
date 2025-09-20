@@ -14,10 +14,12 @@ import { notificationService } from "@/services/notificationService";
 import { historicalDataProcessor } from "@/services/historicalDataProcessor";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Capacitor } from "@capacitor/core";
 
 export const Dashboard = () => {
   const { user } = useAuth();
+  const { isMaster, loading: roleLoading } = useUserRole();
   const [monthlyData, setMonthlyData] = useState({
     income: 0,
     expense: 0,
@@ -31,12 +33,12 @@ export const Dashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) {
+    if (user && !roleLoading) {
       checkSetupStatus();
       fetchMonthlyData();
       checkMobilePlatform();
     }
-  }, [user, selectedView]);
+  }, [user, selectedView, isMaster, roleLoading]);
 
   const checkMobilePlatform = () => {
     if (Capacitor.isNativePlatform()) {
@@ -137,33 +139,38 @@ export const Dashboard = () => {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     
-    // 선택된 뷰에 따라 사용자 ID 결정
-    let userIds: string[] = [user.id];
+    // 권한에 따라 사용자 ID 결정
+    let userIds: string[] = [user.id]; // 기본값: 본인만
     
-    if (selectedView === 'spouse') {
-      // 아내 데이터만 (추후 가족 구성원 테이블에서 가져옴)
-      const { data: familyMembers } = await supabase
-        .from('family_members')
-        .select('member_id')
-        .eq('owner_id', user.id)
-        .eq('relationship', 'spouse');
-      
-      if (familyMembers && familyMembers.length > 0) {
-        userIds = familyMembers.map(m => m.member_id);
-      } else {
-        userIds = []; // 아내 데이터 없음
+    if (isMaster) {
+      // 마스터는 선택된 뷰에 따라 데이터 범위 결정
+      if (selectedView === 'spouse') {
+        // 배우자 데이터만
+        const { data: familyMembers } = await supabase
+          .from('family_members')
+          .select('member_id')
+          .eq('owner_id', user.id)
+          .eq('relationship', 'spouse');
+        
+        if (familyMembers && familyMembers.length > 0) {
+          userIds = familyMembers.map(m => m.member_id);
+        } else {
+          userIds = []; // 배우자 데이터 없음
+        }
+      } else if (selectedView === 'family') {
+        // 나 + 가족 모든 데이터
+        const { data: familyMembers } = await supabase
+          .from('family_members')
+          .select('member_id')
+          .eq('owner_id', user.id);
+        
+        if (familyMembers) {
+          userIds = [user.id, ...familyMembers.map(m => m.member_id)];
+        }
       }
-    } else if (selectedView === 'family') {
-      // 나 + 가족 모든 데이터
-      const { data: familyMembers } = await supabase
-        .from('family_members')
-        .select('member_id')
-        .eq('owner_id', user.id);
-      
-      if (familyMembers) {
-        userIds = [user.id, ...familyMembers.map(m => m.member_id)];
-      }
+      // selectedView === 'me'인 경우 userIds는 이미 [user.id]로 설정됨
     }
+    // 일반 사용자는 항상 본인 데이터만 (userIds = [user.id])
     
     if (userIds.length === 0) {
       setMonthlyData({ income: 0, expense: 0, balance: 0 });
@@ -208,6 +215,13 @@ export const Dashboard = () => {
     }).format(amount);
   };
 
+  const handleViewChange = (view: 'me' | 'spouse' | 'family') => {
+    // 마스터만 뷰 변경 가능
+    if (isMaster) {
+      setSelectedView(view);
+    }
+  };
+  
   const handleSetupComplete = () => {
     setSetupCompleted(true);
     checkMobilePlatform(); // 설정 완료 후 모바일 기능 활성화
@@ -219,7 +233,7 @@ export const Dashboard = () => {
   }
 
   // 로딩 중이거나 설정 상태를 확인 중인 경우
-  if (loading || setupCompleted === null) {
+  if (loading || setupCompleted === null || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -236,17 +250,29 @@ export const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="min-h-screen bg-background">
+      <UserHeader 
+        selectedView={selectedView}
+        onViewChange={handleViewChange}
+      />
+      
+      <div className="p-4 md:p-6">
+        <div className="mx-auto max-w-7xl space-y-6">
           {/* Header */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                {selectedView === 'me' ? '내 가계부' : 
-                 selectedView === 'spouse' ? '아내 가계부' : '가족 가계부'}
+                {!isMaster ? '내 가계부' :
+                 selectedView === 'me' ? '내 가계부' : 
+                 selectedView === 'spouse' ? '배우자 가계부' : '가족 가계부'}
               </h1>
               <p className="text-muted-foreground">
                 {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 재무현황
+                {!isMaster && (
+                  <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
+                    본인 데이터만 표시
+                  </span>
+                )}
               </p>
             </div>
             <TransactionForm onTransactionAdded={fetchMonthlyData} />
@@ -413,6 +439,7 @@ export const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );
