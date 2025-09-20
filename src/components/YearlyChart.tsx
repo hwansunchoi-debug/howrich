@@ -80,7 +80,21 @@ export const YearlyChart = () => {
         .order('name', { ascending: true });
 
       if (error) throw error;
-      setCategories(data || []);
+      
+      // 중복 카테고리 제거 (이름과 타입 기준으로, 사용자 카테고리 우선)
+      const uniqueCategories = data?.reduce((acc: any[], current: any) => {
+        const existing = acc.find(cat => cat.name === current.name && cat.type === current.type);
+        if (!existing) {
+          acc.push(current);
+        } else if (current.user_id && !existing.user_id) {
+          // 사용자 카테고리가 기본 카테고리보다 우선
+          const index = acc.findIndex(cat => cat.name === current.name && cat.type === current.type);
+          acc[index] = current;
+        }
+        return acc;
+      }, []) || [];
+      
+      setCategories(uniqueCategories);
     } catch (error) {
       console.error('카테고리 조회 실패:', error);
     }
@@ -104,7 +118,7 @@ export const YearlyChart = () => {
       // 사용자 필터 적용
       const targetUserId = isMaster && userFilter !== 'all' ? userFilter : user.id;
       
-      // 월별 수입 조회
+      // 월별 수입 조회 (기타 카테고리 제외)
       let incomeQuery = supabase
         .from('transactions')
         .select(`
@@ -112,6 +126,7 @@ export const YearlyChart = () => {
           categories!inner(id, name, type)
         `)
         .eq('type', 'income')
+        .neq('categories.type', 'other')
         .gte('date', startDate)
         .lt('date', endDate);
 
@@ -121,8 +136,8 @@ export const YearlyChart = () => {
         incomeQuery = incomeQuery.eq('user_id', user.id);
       }
 
-      // 대분류 필터 적용
-      if (categoryTypeFilter !== 'all') {
+      // 대분류 필터 적용 (기타 제외)
+      if (categoryTypeFilter !== 'all' && categoryTypeFilter !== 'other') {
         incomeQuery = incomeQuery.eq('categories.type', categoryTypeFilter);
       }
 
@@ -151,8 +166,8 @@ export const YearlyChart = () => {
         expenseQuery = expenseQuery.eq('user_id', user.id);
       }
 
-      // 대분류 필터 적용 (지출 데이터에만, income 타입 제외)
-      if (categoryTypeFilter !== 'all' && categoryTypeFilter !== 'income') {
+      // 대분류 필터 적용 (지출 데이터에만, 기타 제외)
+      if (categoryTypeFilter !== 'all' && categoryTypeFilter !== 'income' && categoryTypeFilter !== 'other') {
         expenseQuery = expenseQuery.eq('categories.type', categoryTypeFilter);
       }
 
@@ -278,7 +293,6 @@ export const YearlyChart = () => {
                 <SelectItem value="all">전체</SelectItem>
                 <SelectItem value="income">수입</SelectItem>
                 <SelectItem value="expense">지출</SelectItem>
-                <SelectItem value="other">기타</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -293,7 +307,10 @@ export const YearlyChart = () => {
               <SelectContent>
                 <SelectItem value="all">전체</SelectItem>
                 {categories
-                  .filter(category => categoryTypeFilter === 'all' || category.type === categoryTypeFilter)
+                  .filter(category => 
+                    (categoryTypeFilter === 'all' || category.type === categoryTypeFilter) &&
+                    category.type !== 'other'
+                  )
                   .map((category) => (
                     <SelectItem key={category.id} value={category.id}>
                       <div className="flex items-center gap-2">

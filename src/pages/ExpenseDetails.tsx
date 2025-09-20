@@ -96,14 +96,14 @@ export default function ExpenseDetails() {
 
       if (error) throw error;
       
-      // 중복 카테고리 제거 (이름 기준으로, 사용자 카테고리 우선)
+      // 중복 카테고리 제거 (이름과 타입 기준으로, 사용자 카테고리 우선)
       const uniqueCategories = data?.reduce((acc: Category[], current) => {
-        const existing = acc.find(cat => cat.name === current.name);
+        const existing = acc.find(cat => cat.name === current.name && cat.type === current.type);
         if (!existing) {
           acc.push(current as Category);
         } else if (current.user_id && !existing.user_id) {
           // 사용자 카테고리가 기본 카테고리보다 우선
-          const index = acc.findIndex(cat => cat.name === current.name);
+          const index = acc.findIndex(cat => cat.name === current.name && cat.type === current.type);
           acc[index] = current as Category;
         }
         return acc;

@@ -86,14 +86,14 @@ export default function CategoryManagement() {
 
       if (error) throw error;
       
-      // 중복 제거 로직 추가
+      // 중복 카테고리 제거 (이름과 타입 기준으로, 사용자 카테고리 우선)
       const uniqueCategories = (data || []).reduce((acc, cat) => {
         const existing = acc.find(c => c.name === cat.name && c.type === cat.type);
         if (!existing) {
           acc.push(cat);
-        } else if (cat.user_id === null && existing.user_id !== null) {
-          // 기본 카테고리를 우선순위로 선택
-          const index = acc.findIndex(c => c.id === existing.id);
+        } else if (cat.user_id && !existing.user_id) {
+          // 사용자 카테고리가 기본 카테고리보다 우선
+          const index = acc.findIndex(c => c.name === existing.name && c.type === existing.type);
           acc[index] = cat;
         }
         return acc;
