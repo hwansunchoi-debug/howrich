@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell } from "lucide-react";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { BudgetManager } from "./BudgetManager";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
+import { notificationService } from "@/services/notificationService";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 
@@ -43,6 +44,22 @@ export const Dashboard = () => {
       toast({
         title: "SMS 권한 필요",
         description: "SMS 읽기 권한을 허용해주세요.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    try {
+      await notificationService.initializeNotificationListener();
+      toast({
+        title: "푸시 알림 자동 인식 활성화됨",
+        description: "이제 네이버페이, 카카오페이 등 앱 알림이 자동으로 거래내역에 등록됩니다.",
+      });
+    } catch (error) {
+      toast({
+        title: "알림 접근 권한 필요",
+        description: "앱 알림 읽기 권한을 허용해주세요.",
         variant: "destructive",
       });
     }
@@ -103,28 +120,51 @@ export const Dashboard = () => {
           <TransactionForm onTransactionAdded={fetchMonthlyData} />
         </div>
 
-        {/* SMS Auto Recognition */}
+        {/* SMS and Notification Auto Recognition */}
         {smsEnabled && (
-          <Card className="bg-gradient-primary text-white shadow-elevated">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-white/90">SMS 자동 인식</CardTitle>
-              <Smartphone className="h-4 w-4 text-white/90" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-lg font-bold mb-2">스마트 거래내역 등록</div>
-              <p className="text-xs text-white/80 mb-4">
-                카드 결제, 계좌 이체 문자를 자동으로 인식하여 거래내역에 등록
-              </p>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={handleEnableSMS}
-                className="w-full"
-              >
-                SMS 자동 인식 활성화
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card className="bg-gradient-primary text-white shadow-elevated">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white/90">SMS 자동 인식</CardTitle>
+                <Smartphone className="h-4 w-4 text-white/90" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-bold mb-2">카드/은행 문자 감지</div>
+                <p className="text-xs text-white/80 mb-4">
+                  카드 결제, 계좌 이체 문자를 자동으로 인식
+                </p>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={handleEnableSMS}
+                  className="w-full"
+                >
+                  SMS 자동 인식 활성화
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-success text-white shadow-elevated">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white/90">푸시 알림 인식</CardTitle>
+                <Bell className="h-4 w-4 text-white/90" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-bold mb-2">간편결제 알림 감지</div>
+                <p className="text-xs text-white/80 mb-4">
+                  네이버페이, 카카오페이 등 앱 알림 자동 인식
+                </p>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={handleEnableNotifications}
+                  className="w-full"
+                >
+                  푸시 알림 인식 활성화
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Summary Cards */}
