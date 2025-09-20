@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { ArrowLeft, TrendingDown, Calendar, Filter, Edit2, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ArrowLeft, TrendingDown, Calendar, Filter, Edit2, X, Search, CheckSquare, Square } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,11 +23,13 @@ interface Transaction {
   date: string;
   description: string;
   amount: number;
+  type: 'expense' | 'other';
   institution?: string;
   category?: {
     id: string;
     name: string;
     color: string;
+    type: 'expense' | 'other';
   };
   category_id?: string;
 }
@@ -34,6 +38,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
+  type: 'expense' | 'other';
   user_id?: string;
 }
 
@@ -51,9 +56,14 @@ export default function ExpenseDetails() {
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>();
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [selectedCategoryType, setSelectedCategoryType] = useState<string>('expense');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [totalExpense, setTotalExpense] = useState(0);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
+  const [bulkCategoryType, setBulkCategoryType] = useState<'expense' | 'other'>('other');
   
   // URL 파라미터에서 카테고리 필터 읽기
   const categoryFromUrl = searchParams.get('category');
@@ -65,7 +75,7 @@ export default function ExpenseDetails() {
       fetchCategories();
       fetchInstitutions();
     }
-  }, [user, selectedMonth, selectedYear, selectedDateRange, selectedInstitution, selectedCategoryFilter]);
+  }, [user, selectedMonth, selectedYear, selectedDateRange, selectedInstitution, selectedCategoryFilter, selectedCategoryType, searchTerm]);
 
   useEffect(() => {
     // URL에서 카테고리 파라미터 변경시 필터 업데이트
@@ -79,7 +89,7 @@ export default function ExpenseDetails() {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('type', 'expense')
+        .in('type', ['expense', 'other'])
         .or(`user_id.is.null,user_id.eq.${user?.id}`)
         .order('name');
 
@@ -89,11 +99,11 @@ export default function ExpenseDetails() {
       const uniqueCategories = data?.reduce((acc: Category[], current) => {
         const existing = acc.find(cat => cat.name === current.name);
         if (!existing) {
-          acc.push(current);
+          acc.push(current as Category);
         } else if (current.user_id && !existing.user_id) {
           // 사용자 카테고리가 기본 카테고리보다 우선
           const index = acc.findIndex(cat => cat.name === current.name);
-          acc[index] = current;
+          acc[index] = current as Category;
         }
         return acc;
       }, []) || [];
@@ -113,7 +123,7 @@ export default function ExpenseDetails() {
       const { data, error } = await supabase
         .from('transactions')
         .select('institution')
-        .eq('type', 'expense')
+        .in('type', ['expense', 'other'])
         .eq('user_id', user?.id)
         .gte('date', startDate)
         .lte('date', endDate)
@@ -134,10 +144,19 @@ export default function ExpenseDetails() {
         .from('transactions')
         .select(`
           *,
-          categories(id, name, color)
+          categories(id, name, color, type)
         `)
-        .eq('type', 'expense')
+        .in('type', ['expense', 'other'])
         .eq('user_id', user?.id);
+
+      // 대분류 필터 적용
+      if (selectedCategoryType !== 'all') {
+        if (selectedCategoryType === 'expense') {
+          query = query.eq('type', 'expense');
+        } else if (selectedCategoryType === 'other') {
+          query = query.eq('type', 'other');
+        }
+      }
 
       // 카테고리 필터 적용
       if (selectedCategoryFilter !== 'all') {
@@ -165,14 +184,83 @@ export default function ExpenseDetails() {
 
       if (error) throw error;
 
-      setTransactions(data || []);
-      const total = data?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+      let filteredData = data || [];
+
+      // 검색어 필터 적용
+      if (searchTerm.trim()) {
+        filteredData = filteredData.filter(t => 
+          t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.institution?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t.categories?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+
+      setTransactions(filteredData.map(t => ({
+        ...t,
+        type: t.type as 'expense' | 'other',
+        category: t.categories ? {
+          ...t.categories,
+          type: t.categories.type as 'expense' | 'other'
+        } : undefined
+      })));
+      
+      // 지출 금액은 type이 'expense'인 것만 계산
+      const expenseOnly = filteredData.filter(t => t.type === 'expense');
+      const total = expenseOnly.reduce((sum, t) => sum + Math.abs(t.amount), 0);
       setTotalExpense(total);
     } catch (error) {
-      console.error('지출 내역 조회 실패:', error);
+      console.error('거래 내역 조회 실패:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBulkCategoryTypeUpdate = async () => {
+    if (selectedTransactions.size === 0) return;
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ type: bulkCategoryType })
+        .in('id', Array.from(selectedTransactions));
+
+      if (error) throw error;
+
+      toast({
+        title: "대분류 수정 완료",
+        description: `${selectedTransactions.size}건의 거래 대분류가 ${bulkCategoryType === 'expense' ? '지출' : '기타'}로 변경되었습니다.`,
+      });
+
+      // 목록 새로고침 및 선택 해제
+      fetchExpenseTransactions();
+      setSelectedTransactions(new Set());
+      setBulkEditDialogOpen(false);
+    } catch (error) {
+      console.error('대분류 수정 실패:', error);
+      toast({
+        title: "오류",
+        description: "대분류 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTransactions.size === transactions.length) {
+      setSelectedTransactions(new Set());
+    } else {
+      setSelectedTransactions(new Set(transactions.map(t => t.id)));
+    }
+  };
+
+  const handleSelectTransaction = (transactionId: string) => {
+    const newSelected = new Set(selectedTransactions);
+    if (newSelected.has(transactionId)) {
+      newSelected.delete(transactionId);
+    } else {
+      newSelected.add(transactionId);
+    }
+    setSelectedTransactions(newSelected);
   };
 
   const handleCategoryUpdate = async () => {
@@ -254,7 +342,22 @@ export default function ExpenseDetails() {
                 <span className="font-medium">필터 옵션</span>
               </div>
               
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-5">
+                {/* 대분류 필터 */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">대분류</label>
+                  <Select value={selectedCategoryType} onValueChange={setSelectedCategoryType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="expense">지출</SelectItem>
+                      <SelectItem value="other">기타</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* 년도 선택 */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">년도</label>
@@ -296,7 +399,9 @@ export default function ExpenseDetails() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
-                      {categories.map((category) => (
+                      {categories
+                        .filter(cat => selectedCategoryType === 'all' || cat.type === selectedCategoryType)
+                        .map((category) => (
                         <SelectItem key={category.id} value={category.id}>
                           <div className="flex items-center gap-2">
                             <div 
@@ -333,12 +438,84 @@ export default function ExpenseDetails() {
           </CardHeader>
         </Card>
 
+        {/* 검색 및 대량 작업 */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="flex items-center gap-2 flex-1">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="거래내역, 금융기관, 카테고리로 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-md"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2"
+                >
+                  {selectedTransactions.size === transactions.length && transactions.length > 0 ? 
+                    <CheckSquare className="h-4 w-4" /> : 
+                    <Square className="h-4 w-4" />
+                  }
+                  {selectedTransactions.size === transactions.length && transactions.length > 0 ? '전체 해제' : '전체 선택'}
+                </Button>
+                
+                {selectedTransactions.size > 0 && (
+                  <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        대분류 수정 ({selectedTransactions.size}건)
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>대분류 일괄 수정</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          선택된 {selectedTransactions.size}건의 거래를 어떤 대분류로 변경하시겠습니까?
+                        </p>
+                        <div>
+                          <label className="text-sm font-medium mb-2 block">대분류</label>
+                          <Select value={bulkCategoryType} onValueChange={(value: 'expense' | 'other') => setBulkCategoryType(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="expense">지출</SelectItem>
+                              <SelectItem value="other">기타</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setBulkEditDialogOpen(false)}>
+                            취소
+                          </Button>
+                          <Button onClick={handleBulkCategoryTypeUpdate}>
+                            수정
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* 통계 요약 */}
         <Card>
           <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-2">총 지출</p>
+                <p className="text-sm text-muted-foreground mb-2">총 지출 (지출만)</p>
                 <p className="text-2xl font-bold text-red-600">
                   {totalExpense.toLocaleString()}원
                 </p>
@@ -350,9 +527,10 @@ export default function ExpenseDetails() {
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-sm text-muted-foreground mb-2">평균 지출</p>
+                <p className="text-sm text-muted-foreground mb-2">평균 지출 (지출만)</p>
                 <p className="text-2xl font-bold">
-                  {transactions.length > 0 ? Math.round(totalExpense / transactions.length).toLocaleString() : 0}원
+                  {transactions.filter(t => t.type === 'expense').length > 0 ? 
+                    Math.round(totalExpense / transactions.filter(t => t.type === 'expense').length).toLocaleString() : 0}원
                 </p>
               </div>
             </div>
@@ -362,7 +540,14 @@ export default function ExpenseDetails() {
         {/* 거래 목록 */}
         <Card>
           <CardHeader>
-            <CardTitle>지출 거래 내역</CardTitle>
+            <CardTitle>
+              {selectedCategoryType === 'expense' ? '지출' : selectedCategoryType === 'other' ? '기타' : '전체'} 거래 내역
+              {selectedTransactions.size > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {selectedTransactions.size}개 선택됨
+                </Badge>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -378,9 +563,16 @@ export default function ExpenseDetails() {
                 {transactions.map((transaction) => (
                   <div
                     key={transaction.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      "flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors",
+                      selectedTransactions.has(transaction.id) && "bg-blue-50 border-blue-200"
+                    )}
                   >
                     <div className="flex items-center gap-3 flex-1">
+                      <Checkbox
+                        checked={selectedTransactions.has(transaction.id)}
+                        onCheckedChange={() => handleSelectTransaction(transaction.id)}
+                      />
                       {transaction.category && (
                         <div
                           className="w-4 h-4 rounded-full"
@@ -395,6 +587,9 @@ export default function ExpenseDetails() {
                               {transaction.category.name}
                             </Badge>
                           )}
+                          <Badge variant={transaction.type === 'expense' ? 'destructive' : 'secondary'} className="text-xs">
+                            {transaction.type === 'expense' ? '지출' : '기타'}
+                          </Badge>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{transaction.date}</span>
@@ -408,7 +603,10 @@ export default function ExpenseDetails() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      <span className="font-bold text-red-600">
+                      <span className={cn(
+                        "font-bold",
+                        transaction.type === 'expense' ? "text-red-600" : "text-gray-600"
+                      )}>
                         -{Math.abs(transaction.amount).toLocaleString()}원
                       </span>
                       <Dialog>
@@ -440,7 +638,9 @@ export default function ExpenseDetails() {
                                   <SelectValue placeholder="카테고리 선택" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {categories.map((category) => (
+                                  {categories
+                                    .filter(cat => cat.type === transaction.type)
+                                    .map((category) => (
                                     <SelectItem key={category.id} value={category.id}>
                                       <div className="flex items-center gap-2">
                                         <div 
