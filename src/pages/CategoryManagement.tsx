@@ -107,7 +107,7 @@ export default function CategoryManagement() {
     }
   };
 
-  const groupTransactionsByMerchant = () => {
+  const groupTransactionsByMerchant = async () => {
     let filteredTransactions = transactions;
 
     // 카테고리 필터링
@@ -136,15 +136,15 @@ export default function CategoryManagement() {
     });
 
     // MerchantGroup 배열로 변환하고 거래 수 기준으로 정렬
-    const merchantGroups = Object.entries(groups)
-      .map(([merchant, txs]) => ({
+    const merchantGroups = await Promise.all(
+      Object.entries(groups).map(async ([merchant, txs]) => ({
         merchant,
         transactions: txs,
-        suggestedCategory: suggestCategory(merchant)
+        suggestedCategory: await suggestCategory(merchant)
       }))
-      .sort((a, b) => b.transactions.length - a.transactions.length);
+    );
 
-    setMerchantGroups(merchantGroups);
+    setMerchantGroups(merchantGroups.sort((a, b) => b.transactions.length - a.transactions.length));
   };
 
   const extractMerchantName = (description: string): string => {
@@ -163,7 +163,14 @@ export default function CategoryManagement() {
       .substring(0, 20); // 최대 20자로 제한
   };
 
-  const suggestCategory = (merchant: string): string => {
+  const suggestCategory = async (merchant: string): Promise<string> => {
+    // 먼저 학습된 카테고리가 있는지 확인
+    const learnedCategoryId = await getLearnedCategory(merchant);
+    if (learnedCategoryId) {
+      const category = categories.find(c => c.id === learnedCategoryId);
+      if (category) return category.name;
+    }
+
     // 새로운 카테고리 분류 체계 적용
     const categoryKeywords = {
       '교육': ['학원', '과외', '교육', '학습', '강의', '도서', '책'],
@@ -279,6 +286,21 @@ export default function CategoryManagement() {
 
       if (error) throw error;
 
+      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      for (const merchant of allMerchants) {
+        const { error: mappingError } = await supabase
+          .from('merchant_category_mappings')
+          .upsert({
+            user_id: user?.id,
+            merchant_name: merchant,
+            category_id: newCategoryId
+          });
+        
+        if (mappingError) {
+          console.error('가맹점 매핑 저장 실패:', mappingError);
+        }
+      }
+
       toast({
         title: "카테고리 일괄 적용 완료",
         description: `${transactionsToUpdate.length}개의 거래에 카테고리가 적용되었습니다.`,
@@ -309,61 +331,19 @@ export default function CategoryManagement() {
     }
   };
 
-  const removeSimilarMerchants = async () => {
+  const getLearnedCategory = async (merchant: string): Promise<string | null> => {
     try {
-      const merchantsToRemove = new Set<string>();
-      
-      // 모든 가맹점 조합에 대해 유사도 검사
-      for (let i = 0; i < merchantGroups.length; i++) {
-        for (let j = i + 1; j < merchantGroups.length; j++) {
-          const merchant1 = merchantGroups[i].merchant;
-          const merchant2 = merchantGroups[j].merchant;
-          
-          const similarity = calculateSimilarity(merchant1, merchant2);
-          if (similarity > 0.8) { // 80% 이상 유사한 경우
-            // 더 적은 거래수를 가진 가맹점을 제거 대상으로 선택
-            const group1 = merchantGroups[i];
-            const group2 = merchantGroups[j];
-            
-            if (group1.transactions.length < group2.transactions.length) {
-              merchantsToRemove.add(merchant1);
-            } else {
-              merchantsToRemove.add(merchant2);
-            }
-          }
-        }
-      }
-      
-      if (merchantsToRemove.size === 0) {
-        toast({
-          title: "알림",
-          description: "제거할 유사한 가맹점이 없습니다.",
-        });
-        return;
-      }
+      const { data, error } = await supabase
+        .from('merchant_category_mappings')
+        .select('category_id')
+        .eq('user_id', user?.id)
+        .eq('merchant_name', merchant)
+        .single();
 
-      // 선택된 유사 가맹점들의 거래를 대표 가맹점으로 통합
-      const transactionsToUpdate = merchantGroups
-        .filter(group => merchantsToRemove.has(group.merchant))
-        .flatMap(group => group.transactions.map(t => t.id));
-      
-      // 거래 설명을 대표 가맹점명으로 변경
-      // (실제로는 삭제하지 않고 설명만 통일)
-      
-      toast({
-        title: "유사 가맹점 정리 완료",
-        description: `${merchantsToRemove.size}개의 유사한 가맹점이 정리되었습니다.`,
-      });
-      
-      // 데이터 새로고침
-      fetchTransactions();
+      if (error || !data) return null;
+      return data.category_id;
     } catch (error) {
-      console.error('유사 가맹점 삭제 실패:', error);
-      toast({
-        title: "오류",
-        description: "유사 가맹점 삭제에 실패했습니다.",
-        variant: "destructive",
-      });
+      return null;
     }
   };
 
@@ -498,13 +478,6 @@ export default function CategoryManagement() {
                       }}
                     >
                       전체 선택
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={removeSimilarMerchants}
-                    >
-                      유사 가맹점 삭제
                     </Button>
                     {selectedMerchants.size > 0 && (
                       <Button
