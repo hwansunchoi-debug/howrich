@@ -6,6 +6,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { CSVParser } from '@/services/csvParser';
+import { CSVMappingDialog } from './CSVMappingDialog';
+import { BankTemplate } from '@/services/bankTemplates';
 import { toast } from '@/hooks/use-toast';
 
 interface TransactionUploadProps {
@@ -20,6 +22,8 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
     success: number;
     errors: string[];
   } | null>(null);
+  const [csvData, setCsvData] = useState<string[][]>([]);
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -40,19 +44,69 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
   const handleUpload = async () => {
     if (!file) return;
 
+    try {
+      // CSV 파일을 읽어서 파싱
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "빈 파일",
+          description: "CSV 파일에 데이터가 없습니다."
+        });
+        return;
+      }
+
+      // CSV 데이터를 파싱 (쉼표로 분리)
+      const parsedData = lines.map(line => {
+        const columns: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if ((char === ',' || char === '\t') && !inQuotes) {
+            columns.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        
+        columns.push(current.trim());
+        return columns.map(col => col.replace(/^"|"$/g, '')); // 따옴표 제거
+      });
+
+      setCsvData(parsedData);
+      setShowMappingDialog(true);
+      
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "파일 읽기 실패",
+        description: error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다."
+      });
+    }
+  };
+
+  const handleMappingConfirm = async (template: BankTemplate, customMapping?: any) => {
     setIsUploading(true);
     setUploadProgress(0);
 
     try {
-      // CSV 파싱
+      // 템플릿을 사용해서 데이터 파싱
       setUploadProgress(30);
-      const parseResult = await CSVParser.parseTransactionCSV(file);
+      const parseResult = await CSVParser.parseTransactionCSVWithTemplate(csvData, template);
       
       if (parseResult.errors.length > 0 && parseResult.transactions.length === 0) {
         toast({
           variant: "destructive",
-          title: "CSV 파싱 실패",
-          description: "파일 형식을 확인해주세요."
+          title: "데이터 파싱 실패",
+          description: "선택한 형식으로 데이터를 처리할 수 없습니다."
         });
         setUploadResult({ success: 0, errors: parseResult.errors });
         setIsUploading(false);
@@ -103,16 +157,17 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
       </CardHeader>
       
       <CardContent className="space-y-6">
-        <Alert>
-          <FileText className="h-4 w-4" />
-          <AlertDescription>
-            <strong>CSV 파일 형식 안내:</strong><br />
-            • 컬럼 순서: 날짜, 내용, 금액, 분류(선택)<br />
-            • 날짜 형식: YYYY-MM-DD, YYYY.MM.DD, YYYYMMDD 등<br />
-            • 금액은 양수/음수로 수입/지출 구분 (음수면 지출)<br />
-            • 첫 번째 행이 헤더인 경우 자동으로 건너뜁니다.
-          </AlertDescription>
-        </Alert>
+            <Alert>
+              <FileText className="h-4 w-4" />
+              <AlertDescription>
+                <strong>지원되는 금융기관:</strong><br />
+                • <strong>은행:</strong> KB국민, 신한, 우리, 하나, NH농협<br />
+                • <strong>카드:</strong> 우리카드, 삼성카드, 현대카드, 신한카드, KB국민카드<br />
+                • <strong>증권:</strong> 키움증권, 미래에셋증권<br />
+                • <strong>범용:</strong> 모든 CSV 형식 (컬럼 수동 매핑)<br /><br />
+                파일 업로드 후 자동으로 형식을 감지하고 데이터 매핑을 확인할 수 있습니다.
+              </AlertDescription>
+            </Alert>
 
         <div className="space-y-4">
           <div>
@@ -136,7 +191,7 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
               
               {!isUploading && (
                 <Button onClick={handleUpload} size="sm">
-                  업로드 시작
+                  형식 확인 및 업로드
                 </Button>
               )}
             </div>
@@ -191,6 +246,13 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
               나중에 업로드하기
             </Button>
           </div>
+
+          <CSVMappingDialog
+            open={showMappingDialog}
+            onOpenChange={setShowMappingDialog}
+            csvData={csvData}
+            onConfirm={handleMappingConfirm}
+          />
         </div>
       </CardContent>
     </Card>

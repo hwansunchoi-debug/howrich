@@ -1,3 +1,6 @@
+import { supabase } from '@/integrations/supabase/client';
+import { BankTemplate } from './bankTemplates';
+
 interface TransactionRow {
   date: string;
   description: string;
@@ -12,6 +15,111 @@ interface ParseResult {
 }
 
 export class CSVParser {
+  /**
+   * 템플릿을 사용해서 CSV 파일을 파싱
+   */
+  static async parseTransactionCSVWithTemplate(csvData: string[][], template: BankTemplate): Promise<ParseResult> {
+    try {
+      const transactions: TransactionRow[] = [];
+      const errors: string[] = [];
+
+      // 헤더 행 건너뛰기
+      const startIndex = template.hasHeader ? 1 : 0;
+      const skipRows = template.skipRows || 0;
+      const dataStartIndex = Math.max(startIndex, skipRows);
+
+      for (let i = dataStartIndex; i < csvData.length; i++) {
+        const lineNumber = i + 1;
+        const row = csvData[i];
+        
+        if (!row || row.length === 0) continue;
+
+        try {
+          const transaction = this.parseTransactionWithTemplate(row, template, lineNumber);
+          if (transaction) {
+            transactions.push(transaction);
+          }
+        } catch (error) {
+          errors.push(`라인 ${lineNumber}: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+        }
+      }
+
+      return { transactions, errors };
+    } catch (error) {
+      return { 
+        transactions: [], 
+        errors: [`템플릿 파싱 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`] 
+      };
+    }
+  }
+
+  /**
+   * 템플릿을 사용해서 단일 행을 거래내역으로 파싱
+   */
+  private static parseTransactionWithTemplate(row: string[], template: BankTemplate, lineNumber: number): TransactionRow | null {
+    // 날짜 추출
+    const dateValue = template.columns.date !== undefined ? row[template.columns.date] : '';
+    const normalizedDate = this.normalizeDate(dateValue);
+    if (!normalizedDate) {
+      throw new Error(`잘못된 날짜 형식: ${dateValue}`);
+    }
+
+    // 설명/내용 추출
+    let description = '';
+    if (template.columns.description !== undefined) {
+      description = row[template.columns.description] || '';
+    } else if (template.columns.merchant !== undefined) {
+      description = row[template.columns.merchant] || '';
+    }
+
+    if (!description.trim()) {
+      throw new Error('거래 내용이 비어있습니다.');
+    }
+
+    // 금액 및 타입 추출
+    let amount = 0;
+    let type: 'income' | 'expense' = 'expense';
+
+    if (template.columns.amount !== undefined) {
+      // 단일 금액 컬럼 (양수/음수로 구분)
+      const amountStr = row[template.columns.amount] || '';
+      const numericAmount = this.extractAmount(amountStr);
+      amount = Math.abs(numericAmount);
+      type = numericAmount < 0 ? 'expense' : 'income';
+    } else if (template.columns.withdrawal !== undefined && template.columns.deposit !== undefined) {
+      // 출금/입금 분리 컬럼
+      const withdrawalStr = row[template.columns.withdrawal] || '';
+      const depositStr = row[template.columns.deposit] || '';
+      
+      const withdrawalAmount = this.extractAmount(withdrawalStr);
+      const depositAmount = this.extractAmount(depositStr);
+      
+      if (withdrawalAmount > 0) {
+        amount = withdrawalAmount;
+        type = 'expense';
+      } else if (depositAmount > 0) {
+        amount = depositAmount;
+        type = 'income';
+      } else {
+        throw new Error('금액 정보가 없습니다.');
+      }
+    } else {
+      throw new Error('금액 컬럼을 찾을 수 없습니다.');
+    }
+
+    // 금액 검증
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error(`잘못된 금액: ${amount}`);
+    }
+
+    return {
+      date: normalizedDate,
+      description: description.trim(),
+      amount,
+      type
+    };
+  }
+
   /**
    * CSV 파일을 파싱하여 거래내역으로 변환
    */
