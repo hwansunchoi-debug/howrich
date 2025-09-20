@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, X, RotateCcw } from 'lucide-react';
 import { CSVParser } from '@/services/csvParser';
 import { CSVMappingDialog } from './CSVMappingDialog';
 import { BankTemplate } from '@/services/bankTemplates';
@@ -122,9 +122,22 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
     }
   };
 
-  const handleMappingConfirm = async (template: BankTemplate, customMapping?: any) => {
-    setIsUploading(true);
+  const resetUpload = () => {
+    setFile(null);
+    setUploadResult(null);
+    setCsvData([]);
+    setShowMappingDialog(false);
     setUploadProgress(0);
+    setIsUploading(false);
+    
+    // 파일 입력 필드 초기화
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const handleMappingConfirm = async (template: BankTemplate, customMapping?: any) => {
 
     try {
       // 템플릿을 사용해서 데이터 파싱
@@ -216,11 +229,23 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
                 </span>
               </div>
               
-              {!isUploading && (
-                <Button onClick={handleUpload} size="sm">
-                  형식 확인 및 업로드
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetUpload}
+                  disabled={isUploading}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
                 </Button>
-              )}
+                
+                {!isUploading && (
+                  <Button onClick={handleUpload} size="sm">
+                    형식 확인 및 업로드
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -236,31 +261,47 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
 
           {uploadResult && (
             <div className="space-y-3">
-              {uploadResult.success > 0 && (
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>{uploadResult.success}개의 거래내역</strong>이 성공적으로 업로드되었습니다.
-                  </AlertDescription>
-                </Alert>
-              )}
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  {uploadResult.success > 0 && (
+                    <Alert>
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>{uploadResult.success}개의 거래내역</strong>이 성공적으로 업로드되었습니다.
+                      </AlertDescription>
+                    </Alert>
+                  )}
 
-              {uploadResult.errors.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>오류 발생:</strong>
-                    <ul className="mt-2 list-disc list-inside text-xs">
-                      {uploadResult.errors.slice(0, 10).map((error, index) => (
-                        <li key={index}>{error}</li>
-                      ))}
-                      {uploadResult.errors.length > 10 && (
-                        <li>...외 {uploadResult.errors.length - 10}개 오류</li>
-                      )}
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-              )}
+                  {uploadResult.errors.length > 0 && (
+                    <Alert variant="destructive" className="mt-3">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>오류 발생:</strong>
+                        <ul className="mt-2 list-disc list-inside text-xs">
+                          {uploadResult.errors.slice(0, 10).map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                          {uploadResult.errors.length > 10 && (
+                            <li>...외 {uploadResult.errors.length - 10}개 오류</li>
+                          )}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+                
+                {uploadResult.errors.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetUpload}
+                    className="ml-3 shrink-0"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    다시 업로드
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
