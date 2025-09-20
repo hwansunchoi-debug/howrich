@@ -780,12 +780,6 @@ export default function ExpenseDetails() {
                             </Select>
                           </div>
 
-                          {/* 결제수단 (미구현 - 향후 추가 예정) */}
-                          <div className="relative">
-                            <Badge variant="outline" className="text-xs h-6 px-2">
-                              결제수단
-                            </Badge>
-                          </div>
                         </div>
                       </div>
                     </div>

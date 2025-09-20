@@ -11,6 +11,7 @@ import { ArrowLeft, Tag, Filter, Search, AlertCircle, CheckCircle, Edit2, Plus, 
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 import CategoryStatusCard from "@/components/CategoryStatusCard";
 import MerchantMappingCard from "@/components/MerchantMappingCard";
 
@@ -641,67 +642,9 @@ export default function CategoryManagement() {
             {/* 가맹점별 거래 리스트 */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
+              <CardTitle className="flex items-center justify-between">
                   가맹점별 거래 현황
-              <div className="flex items-center gap-2">
-                <Button
-                  variant={bulkMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setBulkMode(!bulkMode);
-                    setSelectedMerchants(new Set());
-                  }}
-                >
-                  {bulkMode ? "완료" : "대량 선택"}
-                </Button>
-                {bulkMode && (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const allMerchants = new Set(merchantGroups.map(g => g.merchant));
-                        setSelectedMerchants(allMerchants);
-                      }}
-                    >
-                      전체 선택
-                    </Button>
-                    {selectedMerchants.size > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="카테고리 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories
-                              .filter(cat => cat.type === 'expense') // 대부분의 거래가 지출이므로
-                              .map(category => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  <div className="flex items-center gap-2">
-                                    <div 
-                                      className="w-3 h-3 rounded-full" 
-                                      style={{ backgroundColor: category.color }}
-                                    />
-                                    {category.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={handleBulkSelectedUpdate}
-                          disabled={!bulkCategoryId}
-                        >
-                          선택된 {selectedMerchants.size}개 분류
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </CardTitle>
+              </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -734,45 +677,162 @@ export default function CategoryManagement() {
                     key={group.merchant}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    {bulkMode && (
-                      <input
-                        type="checkbox"
-                        checked={selectedMerchants.has(group.merchant)}
-                        onChange={(e) => {
-                          const newSelected = new Set(selectedMerchants);
-                          if (e.target.checked) {
-                            newSelected.add(group.merchant);
-                          } else {
-                            newSelected.delete(group.merchant);
-                          }
-                          setSelectedMerchants(newSelected);
-                        }}
-                        className="mr-3"
-                      />
-                    )}
+                    <input
+                      type="checkbox"
+                      checked={selectedMerchants.has(group.merchant)}
+                      onChange={(e) => {
+                        const newSelected = new Set(selectedMerchants);
+                        if (e.target.checked) {
+                          newSelected.add(group.merchant);
+                        } else {
+                          newSelected.delete(group.merchant);
+                        }
+                        setSelectedMerchants(newSelected);
+                      }}
+                      className="mr-3"
+                    />
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <h3 className="font-medium">{group.merchant}</h3>
                         <Badge variant="outline">
                           {group.transactions.length}건
                         </Badge>
-                        {group.transactions[0]?.category ? (
-                          <Badge 
-                            style={{ 
-                              backgroundColor: group.transactions[0].category.color + '20',
-                              color: group.transactions[0].category.color,
-                              borderColor: group.transactions[0].category.color
-                            }}
-                          >
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {group.transactions[0].category.name}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-orange-600 border-orange-600">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            미분류
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
+                        <span>최근: {new Date(group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('ko-KR')}</span>
+                        {institutions.length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {institutions.join(', ')}
                           </Badge>
                         )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* 인라인 대분류 수정 - Badge 스타일 */}
+                        <div className="relative">
+                          <Select 
+                            value={group.transactions[0]?.type} 
+                            onValueChange={async (value: 'expense' | 'income' | 'other') => {
+                              try {
+                                const { error } = await supabase
+                                  .from('transactions')
+                                  .update({ type: value })
+                                  .in('id', group.transactions.map(t => t.id));
+
+                                if (error) throw error;
+                                
+                                toast({
+                                  title: "대분류 변경 완료",
+                                  description: `${group.transactions.length}건의 거래가 ${value === 'expense' ? '지출' : value === 'income' ? '수입' : '기타'}로 변경되었습니다.`,
+                                });
+                                
+                                fetchTransactions();
+                              } catch (error) {
+                                console.error('대분류 변경 실패:', error);
+                                toast({
+                                  title: "오류",
+                                  description: "대분류 변경에 실패했습니다.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={cn(
+                              "h-6 px-2 text-xs border-0 rounded-full w-auto min-w-[50px]",
+                              group.transactions[0]?.type === 'expense' 
+                                ? "bg-red-100 text-red-800 hover:bg-red-200" 
+                                : group.transactions[0]?.type === 'income'
+                                ? "bg-green-100 text-green-800 hover:bg-green-200"
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                            )}>
+                              <SelectValue>
+                                {group.transactions[0]?.type === 'expense' ? '지출' : 
+                                 group.transactions[0]?.type === 'income' ? '수입' : '기타'}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="expense">지출</SelectItem>
+                              <SelectItem value="income">수입</SelectItem>
+                              <SelectItem value="other">기타</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {/* 인라인 카테고리 수정 - Badge 스타일 */}
+                        <div className="relative">
+                          <Select 
+                            value={group.transactions[0]?.category_id || "uncategorized"} 
+                            onValueChange={async (value: string) => {
+                              if (value === "uncategorized") return;
+                              
+                              try {
+                                const { error } = await supabase
+                                  .from('transactions')
+                                  .update({ category_id: value })
+                                  .in('id', group.transactions.map(t => t.id));
+
+                                if (error) throw error;
+
+                                // 가맹점별 카테고리 매핑 저장
+                                const { error: mappingError } = await supabase
+                                  .from('merchant_category_mappings')
+                                  .upsert({
+                                    merchant_name: group.merchant,
+                                    category_id: value
+                                  });
+                                
+                                if (mappingError) {
+                                  console.error('가맹점 매핑 저장 실패:', mappingError);
+                                }
+
+                                const category = categories.find(c => c.id === value);
+                                toast({
+                                  title: "카테고리 변경 완료",
+                                  description: `${group.transactions.length}건의 거래가 "${category?.name}"로 변경되었습니다.`,
+                                });
+                                
+                                fetchTransactions();
+                              } catch (error) {
+                                console.error('카테고리 변경 실패:', error);
+                                toast({
+                                  title: "오류",
+                                  description: "카테고리 변경에 실패했습니다.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={cn(
+                              "h-6 px-2 text-xs border-0 rounded-full w-auto min-w-[60px]",
+                              group.transactions[0]?.category 
+                                ? "text-white" 
+                                : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                            )} 
+                            style={group.transactions[0]?.category ? { 
+                              backgroundColor: group.transactions[0].category.color 
+                            } : undefined}>
+                              <SelectValue>
+                                {group.transactions[0]?.category?.name || "미분류"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="uncategorized">미분류</SelectItem>
+                              {categories
+                                .filter(cat => cat.type === group.transactions[0]?.type || cat.type === 'expense')
+                                .map(category => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="w-3 h-3 rounded-full" 
+                                      style={{ backgroundColor: category.color }}
+                                    />
+                                    {category.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         {group.suggestedCategory && !group.transactions[0]?.category && (
                           <Badge 
                             variant="secondary" 
@@ -783,6 +843,7 @@ export default function CategoryManagement() {
                           </Badge>
                         )}
                       </div>
+
                       <div className="space-y-1 mt-2">
                         <div className="flex items-center justify-between">
                           <div className="space-y-1">
@@ -797,29 +858,42 @@ export default function CategoryManagement() {
                               </p>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            최근: {new Date(group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('ko-KR')}
-                          </p>
                         </div>
-                        {institutions.length > 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            결제수단: {institutions.join(', ')}
-                          </p>
-                        )}
                       </div>
                     </div>
                     
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedMerchant(group);
-                        setShowCategoryDialog(true);
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4 mr-1" />
-                      분류
-                    </Button>
+                    {selectedMerchants.size > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder="카테고리 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories
+                              .filter(cat => cat.type === 'expense')
+                              .map(category => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="w-3 h-3 rounded-full" 
+                                      style={{ backgroundColor: category.color }}
+                                    />
+                                    {category.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={handleBulkSelectedUpdate}
+                          disabled={!bulkCategoryId}
+                        >
+                          선택된 {selectedMerchants.size}개 분류
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )})}
                 
