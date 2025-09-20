@@ -6,6 +6,7 @@ import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { BudgetManager } from "./BudgetManager";
+import { InitialSetup } from "./InitialSetup";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
@@ -22,9 +23,11 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [isProcessingHistory, setIsProcessingHistory] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
+    checkSetupStatus();
     fetchMonthlyData();
     checkMobilePlatform();
   }, []);
@@ -99,6 +102,26 @@ export const Dashboard = () => {
     }
   };
 
+  const checkSetupStatus = async () => {
+    try {
+      const { data, error } = await (supabase as any)
+        .from('user_settings')
+        .select('setup_completed')
+        .single();
+
+      if (error) {
+        console.error('설정 상태 확인 실패:', error);
+        setSetupCompleted(false);
+        return;
+      }
+
+      setSetupCompleted(data?.setup_completed || false);
+    } catch (error) {
+      console.error('설정 상태 확인 중 오류:', error);
+      setSetupCompleted(false);
+    }
+  };
+
   const fetchMonthlyData = async () => {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -137,6 +160,28 @@ export const Dashboard = () => {
       currency: 'KRW',
     }).format(amount);
   };
+
+  const handleSetupComplete = () => {
+    setSetupCompleted(true);
+    checkMobilePlatform(); // 설정 완료 후 모바일 기능 활성화
+  };
+
+  // 로딩 중이거나 설정 상태를 확인 중인 경우
+  if (loading || setupCompleted === null) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>데이터를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 초기 설정이 완료되지 않은 경우 설정 화면 표시
+  if (!setupCompleted) {
+    return <InitialSetup onComplete={handleSetupComplete} />;
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
