@@ -118,15 +118,12 @@ export const AccountBalanceForm: React.FC<AccountBalanceFormProps> = ({ onComple
         account_name: account.accountName,
         account_type: account.accountType,
         balance: account.balance,
-        last_updated: new Date().toISOString(),
         source: 'manual'
       }));
 
       const { error } = await supabase
         .from('account_balances')
-        .upsert(accountData, {
-          onConflict: 'user_id,account_name,account_type'  // user_id도 포함
-        });
+        .insert(accountData);
 
       if (error) {
         throw error;
