@@ -225,7 +225,7 @@ export const bankTemplates: BankTemplate[] = [
   },
   {
     id: 'excel_standard',
-    name: '권장 엑셀 양식 (금융기관, 날짜, 내용, 수입금액, 지출금액, 구분)',
+    name: '권장 엑셀 양식 (금융기관, 날짜, 내용, 수입금액, 지출금액)',
     category: 'other',
     columns: {
       institution: 0, // 금융기관
@@ -236,7 +236,7 @@ export const bankTemplates: BankTemplate[] = [
     },
     dateFormat: 'auto',
     hasHeader: true,
-    sampleColumns: ['금융기관', '날짜', '내용', '수입금액', '지출금액', '구분']
+    sampleColumns: ['금융기관', '날짜', '내용', '수입금액', '지출금액']
   }
 ];
 
