@@ -8,7 +8,7 @@ import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { YearlyChart } from "./YearlyChart";
-import { AssetTrendChart } from "./AssetTrendChart";
+import { AssetTrendChartEnhanced } from "./AssetTrendChartEnhanced";
 import { AssetTrendChart2025 } from "./AssetTrendChart2025";
 import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
@@ -491,7 +491,7 @@ export const Dashboard = () => {
         <CategoryManagementCard />
         
         {/* Family Asset Chart (Master Only) */}
-        {isMaster && <FamilyAssetChart />}
+        {isMaster && }
 
         {/* Initial Setup Access */}
         <Card className="shadow-card">

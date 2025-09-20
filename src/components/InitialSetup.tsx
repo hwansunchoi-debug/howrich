@@ -44,6 +44,13 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
     setCompletedSteps(prev => new Set([...prev, step]));
   };
 
+  const goToPreviousStep = () => {
+    const currentIndex = getStepIndex(currentStep);
+    if (currentIndex > 0) {
+      setCurrentStep(steps[currentIndex - 1].id);
+    }
+  };
+
   const handleDateNext = () => {
     if (!cutoffDate) {
       toast({

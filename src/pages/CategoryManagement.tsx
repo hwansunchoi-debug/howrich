@@ -291,9 +291,9 @@ export default function CategoryManagement() {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
             <div className="flex items-center gap-2">
               <Tag className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold">카테고리 관리</h1>

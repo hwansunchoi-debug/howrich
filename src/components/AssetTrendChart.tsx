@@ -26,9 +26,60 @@ export const AssetTrendChart = () => {
 
   useEffect(() => {
     if (user) {
+      fetchUsers();
+      fetchAccounts();
       fetchAssetTrend();
     }
-  }, [user]);
+  }, [user, userFilter, accountFilter]);
+
+  const fetchUsers = async () => {
+    if (!user || !isMaster) return;
+
+    try {
+      const { data: familyMembers } = await supabase
+        .from('family_members')
+        .select(`
+          member_id,
+          display_name,
+          profiles!family_members_member_id_fkey(display_name, email)
+        `)
+        .eq('owner_id', user.id);
+
+      const usersList = [
+        { id: user.id, name: '나' },
+        ...(familyMembers || []).map(member => ({
+          id: member.member_id,
+          name: member.display_name || member.profiles?.display_name || member.profiles?.email
+        }))
+      ];
+      
+      setUsers(usersList);
+    } catch (error) {
+      console.error('사용자 목록 조회 실패:', error);
+    }
+  };
+
+  const fetchAccounts = async () => {
+    if (!user) return;
+
+    try {
+      let query = supabase
+        .from('account_balances')
+        .select('account_name');
+
+      if (isMaster && userFilter !== 'all') {
+        query = query.eq('user_id', userFilter);
+      } else if (!isMaster) {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data } = await query;
+      const uniqueAccounts = [...new Set(data?.map(item => item.account_name) || [])];
+      setAccounts(uniqueAccounts);
+    } catch (error) {
+      console.error('계좌 목록 조회 실패:', error);
+    }
+  };
 
   const fetchAssetTrend = async () => {
     if (!user) return;

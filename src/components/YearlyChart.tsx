@@ -161,13 +161,13 @@ export const YearlyChart = () => {
                 />
                 <Bar 
                   dataKey="income" 
-                  fill="hsl(var(--chart-1))" 
+                  fill="#3B82F6" 
                   name="income"
                   radius={[2, 2, 0, 0]}
                 />
                 <Bar 
                   dataKey="expense" 
-                  fill="hsl(var(--chart-2))" 
+                  fill="#EF4444" 
                   name="expense"
                   radius={[2, 2, 0, 0]}
                 />
