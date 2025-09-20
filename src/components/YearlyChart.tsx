@@ -24,6 +24,9 @@ export const YearlyChart = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [userFilter, setUserFilter] = useState<string>('all');
   const [users, setUsers] = useState<any[]>([]);
+  const [categoryTypeFilter, setCategoryTypeFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [categories, setCategories] = useState<any[]>([]);
   const [monthlyAverage, setMonthlyAverage] = useState<number>(0);
 
   const handleRefresh = async () => {
@@ -35,9 +38,10 @@ export const YearlyChart = () => {
   useEffect(() => {
     if (user) {
       fetchUsers();
+      fetchCategories();
       fetchYearlyData();
     }
-  }, [user, selectedYear, userFilter]);
+  }, [user, selectedYear, userFilter, categoryTypeFilter, categoryFilter]);
 
   const fetchUsers = async () => {
     if (!user || !isMaster) return;
@@ -66,6 +70,22 @@ export const YearlyChart = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .or(`user_id.is.null,user_id.eq.${user?.id}`)
+        .order('type', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('카테고리 조회 실패:', error);
+    }
+  };
+
   const fetchYearlyData = async () => {
     if (!user) return;
     
@@ -87,7 +107,10 @@ export const YearlyChart = () => {
       // 월별 수입 조회
       let incomeQuery = supabase
         .from('transactions')
-        .select('amount')
+        .select(`
+          amount,
+          categories!inner(id, name, type)
+        `)
         .eq('type', 'income')
         .gte('date', startDate)
         .lt('date', endDate);
@@ -98,6 +121,16 @@ export const YearlyChart = () => {
         incomeQuery = incomeQuery.eq('user_id', user.id);
       }
 
+      // 대분류 필터 적용
+      if (categoryTypeFilter !== 'all') {
+        incomeQuery = incomeQuery.eq('categories.type', categoryTypeFilter);
+      }
+
+      // 카테고리 필터 적용
+      if (categoryFilter !== 'all') {
+        incomeQuery = incomeQuery.eq('categories.id', categoryFilter);
+      }
+
       const { data: incomeData } = await incomeQuery;
       
       // 월별 지출 조회 (기타 카테고리 제외)
@@ -105,7 +138,7 @@ export const YearlyChart = () => {
         .from('transactions')
         .select(`
           amount,
-          categories!inner(type)
+          categories!inner(id, name, type)
         `)
         .eq('type', 'expense')
         .neq('categories.type', 'other')
@@ -116,6 +149,16 @@ export const YearlyChart = () => {
         expenseQuery = expenseQuery.eq('user_id', userFilter);
       } else if (!isMaster || userFilter === 'all') {
         expenseQuery = expenseQuery.eq('user_id', user.id);
+      }
+
+      // 대분류 필터 적용 (지출 데이터에만, income 타입 제외)
+      if (categoryTypeFilter !== 'all' && categoryTypeFilter !== 'income') {
+        expenseQuery = expenseQuery.eq('categories.type', categoryTypeFilter);
+      }
+
+      // 카테고리 필터 적용
+      if (categoryFilter !== 'all') {
+        expenseQuery = expenseQuery.eq('categories.id', categoryFilter);
       }
 
       const { data: expenseData } = await expenseQuery;
@@ -198,25 +241,74 @@ export const YearlyChart = () => {
       
       {/* 필터 및 월 평균 지출액 */}
       <div className="px-6 pb-4 space-y-4">
-        {isMaster && (
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">사용자:</span>
-            <Select value={userFilter} onValueChange={setUserFilter}>
-              <SelectTrigger className="w-32">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium text-muted-foreground">필터 및 검색</span>
+        </div>
+        
+        <div className="grid gap-4 md:grid-cols-4">
+          {/* 사용자 필터 (마스터만) */}
+          {isMaster && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">사용자</label>
+              <Select value={userFilter} onValueChange={setUserFilter}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {users.map(user => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* 대분류 필터 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">대분류</label>
+            <Select value={categoryTypeFilter} onValueChange={setCategoryTypeFilter}>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">전체</SelectItem>
-                {users.map(user => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="income">수입</SelectItem>
+                <SelectItem value="expense">지출</SelectItem>
+                <SelectItem value="other">기타</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        )}
+
+          {/* 카테고리 필터 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">카테고리</label>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                {categories
+                  .filter(category => categoryTypeFilter === 'all' || category.type === categoryTypeFilter)
+                  .map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: category.color }}
+                        />
+                        {category.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         
         {selectedYear === 2025 && monthlyAverage > 0 && (
           <div className="bg-muted/50 rounded-lg p-4">

@@ -435,7 +435,7 @@ export const Dashboard = () => {
         <div className="grid gap-4 md:grid-cols-4">
           <Card 
             className="bg-gradient-success text-white shadow-elevated cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
-            onClick={() => navigate('/income')}
+            onClick={() => navigate(`/income?year=${selectedYear}&month=${selectedMonth}`)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-white/90">이번 달 수입</CardTitle>
@@ -451,7 +451,7 @@ export const Dashboard = () => {
 
           <Card 
             className="bg-gradient-card shadow-card cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
-            onClick={() => navigate('/expense')}
+            onClick={() => navigate(`/expense?year=${selectedYear}&month=${selectedMonth}`)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">이번 달 지출</CardTitle>
@@ -467,7 +467,7 @@ export const Dashboard = () => {
 
           <Card 
             className="bg-gradient-subtle shadow-card cursor-pointer hover:shadow-lg transition-all transform hover:scale-[1.02]"
-            onClick={() => navigate('/other')}
+            onClick={() => navigate(`/other?year=${selectedYear}&month=${selectedMonth}`)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">이번 달 기타</CardTitle>

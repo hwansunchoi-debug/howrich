@@ -30,7 +30,7 @@ interface Transaction {
     id: string;
     name: string;
     color: string;
-    type: 'income';
+    type: string;
   };
   category_id?: string;
   user_id?: string;
@@ -40,7 +40,7 @@ interface Category {
   id: string;
   name: string;
   color: string;
-  type: 'income';
+  type: string;
   user_id?: string;
 }
 
@@ -61,6 +61,7 @@ export default function IncomeDetails() {
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>();
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+  const [selectedCategoryType, setSelectedCategoryType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(new Set());
   const [totalIncome, setTotalIncome] = useState(0);
@@ -69,8 +70,10 @@ export default function IncomeDetails() {
   const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
   const [bulkCategoryId, setBulkCategoryId] = useState<string>('');
   
-  // URL 파라미터에서 카테고리 필터 읽기
+  // URL 파라미터에서 필터 읽기
   const categoryFromUrl = searchParams.get('category');
+  const yearFromUrl = searchParams.get('year');
+  const monthFromUrl = searchParams.get('month');
   const selectedCategoryName = categoryFromUrl ? categories.find(c => c.id === categoryFromUrl)?.name : null;
 
   useEffect(() => {
@@ -82,14 +85,20 @@ export default function IncomeDetails() {
         fetchUserList();
       }
     }
-  }, [user, selectedUserId, selectedMonth, selectedYear, selectedDateRange, selectedInstitution, selectedCategoryFilter, searchTerm, isMaster]);
+  }, [user, selectedUserId, selectedMonth, selectedYear, selectedDateRange, selectedInstitution, selectedCategoryFilter, selectedCategoryType, searchTerm, isMaster]);
 
   useEffect(() => {
-    // URL에서 카테고리 파라미터 변경시 필터 업데이트
+    // URL에서 파라미터 변경시 필터 업데이트
     if (categoryFromUrl) {
       setSelectedCategoryFilter(categoryFromUrl);
     }
-  }, [categoryFromUrl]);
+    if (yearFromUrl) {
+      setSelectedYear(parseInt(yearFromUrl));
+    }
+    if (monthFromUrl) {
+      setSelectedMonth(parseInt(monthFromUrl));
+    }
+  }, [categoryFromUrl, yearFromUrl, monthFromUrl]);
 
   const fetchUserList = async () => {
     try {
@@ -110,9 +119,9 @@ export default function IncomeDetails() {
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .eq('type', 'income')
         .or(`user_id.is.null,user_id.eq.${user?.id}`)
-        .order('name');
+        .order('type', { ascending: true })
+        .order('name', { ascending: true });
 
       if (error) throw error;
       
@@ -188,6 +197,11 @@ export default function IncomeDetails() {
         query = query.eq('category_id', selectedCategoryFilter);
       }
 
+      // 대분류 필터 적용
+      if (selectedCategoryType !== 'all') {
+        query = query.eq('categories.type', selectedCategoryType);
+      }
+
       // 기관 필터 적용
       if (selectedInstitution !== 'all') {
         query = query.eq('institution', selectedInstitution);
@@ -224,7 +238,7 @@ export default function IncomeDetails() {
         type: 'income' as const,
         category: t.categories ? {
           ...t.categories,
-          type: 'income' as const
+          type: t.categories.type
         } : undefined
       })));
       
@@ -381,7 +395,23 @@ export default function IncomeDetails() {
                 <span className="font-medium">필터 및 검색</span>
               </div>
               
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-5">
+                {/* 대분류 필터 */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">대분류</label>
+                  <Select value={selectedCategoryType} onValueChange={setSelectedCategoryType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      <SelectItem value="income">수입</SelectItem>
+                      <SelectItem value="expense">지출</SelectItem>
+                      <SelectItem value="other">기타</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* 년도 선택 */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">년도</label>
@@ -424,17 +454,19 @@ export default function IncomeDetails() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">전체</SelectItem>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: category.color }}
-                            />
-                            {category.name}
-                          </div>
-                        </SelectItem>
-                      ))}
+                      {categories
+                        .filter(category => selectedCategoryType === 'all' || category.type === selectedCategoryType)
+                        .map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: category.color }}
+                              />
+                              {category.name}
+                            </div>
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -478,48 +510,47 @@ export default function IncomeDetails() {
                 </div>
               )}
 
-              {/* 검색 및 전체 선택 */}
+              {/* 검색 */}
               <div className="flex gap-2">
-                <div className="flex-1 space-y-2">
-                  <label className="text-sm font-medium">검색</label>
-                  <Input
-                    placeholder="거래내역 검색..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">전체 선택</label>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleSelectAll(!transactions.every(t => selectedTransactions.has(t.id)))}
-                    >
-                      {transactions.every(t => selectedTransactions.has(t.id)) ? (
-                        <>
-                          <CheckSquare className="h-4 w-4 mr-2" />
-                          전체 해제
-                        </>
-                      ) : (
-                        <>
-                          <Square className="h-4 w-4 mr-2" />
-                          전체 선택
-                        </>
-                      )}
-                    </Button>
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="거래 내용, 금융기관, 카테고리 검색..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
                 </div>
+                <Button
+                  variant="outline"
+                  onClick={() => handleSelectAll(selectedTransactions.size === 0)}
+                  className="shrink-0"
+                >
+                  {selectedTransactions.size === 0 ? (
+                    <>
+                      <CheckSquare className="h-4 w-4 mr-2" />
+                      전체 선택
+                    </>
+                  ) : (
+                    <>
+                      <Square className="h-4 w-4 mr-2" />
+                      선택 해제
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           </CardHeader>
         </Card>
 
-        {/* 선택된 항목 일괄 작업 */}
+        {/* 선택된 항목 일괄 편집 */}
         {selectedTransactions.size > 0 && (
-          <Card className="border-primary">
+          <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">
+                <span className="text-sm text-muted-foreground">
                   {selectedTransactions.size}개 항목이 선택됨
                 </span>
                 <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
@@ -641,26 +672,55 @@ export default function IncomeDetails() {
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{transaction.date}</span>
-                          <div className="flex items-center gap-2">
+                          
+                          {/* 대분류 드롭다운 */}
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs">대분류:</span>
+                            <Select
+                              value={transaction.category?.type || 'income'}
+                              onValueChange={(value) => {
+                                // 대분류 변경시 해당하는 첫 번째 카테고리로 변경
+                                const firstCategory = categories.find(c => c.type === value);
+                                if (firstCategory) {
+                                  updateTransactionCategory(transaction.id, firstCategory.id);
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-20 h-6 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="income">수입</SelectItem>
+                                <SelectItem value="expense">지출</SelectItem>
+                                <SelectItem value="other">기타</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {/* 카테고리 드롭다운 */}
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs">카테고리:</span>
                             <Select
                               value={transaction.category_id || ''}
                               onValueChange={(value) => updateTransactionCategory(transaction.id, value)}
                             >
-                              <SelectTrigger className="w-32 h-6">
+                              <SelectTrigger className="w-32 h-6 text-xs">
                                 <SelectValue placeholder="카테고리" />
                               </SelectTrigger>
                               <SelectContent>
-                                {categories.map((category) => (
-                                  <SelectItem key={category.id} value={category.id}>
-                                    <div className="flex items-center gap-2">
-                                      <div 
-                                        className="w-2 h-2 rounded-full" 
-                                        style={{ backgroundColor: category.color }}
-                                      />
-                                      {category.name}
-                                    </div>
-                                  </SelectItem>
-                                ))}
+                                {categories
+                                  .filter(category => category.type === (transaction.category?.type || 'income'))
+                                  .map((category) => (
+                                    <SelectItem key={category.id} value={category.id}>
+                                      <div className="flex items-center gap-2">
+                                        <div 
+                                          className="w-2 h-2 rounded-full" 
+                                          style={{ backgroundColor: category.color }}
+                                        />
+                                        {category.name}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -668,10 +728,10 @@ export default function IncomeDetails() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-green-600">
-                        +{Math.abs(transaction.amount).toLocaleString()}원
-                      </span>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-green-600">
+                        +{transaction.amount.toLocaleString()}원
+                      </p>
                     </div>
                   </div>
                 ))}
