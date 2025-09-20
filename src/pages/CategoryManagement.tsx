@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Tag, Filter, Search, AlertCircle, CheckCircle, Edit2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Tag, Filter, Search, AlertCircle, CheckCircle, Edit2, Plus, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import CategoryStatusCard from "@/components/CategoryStatusCard";
 
 interface Transaction {
   id: string;
@@ -54,6 +56,8 @@ export default function CategoryManagement() {
   const [newCategoryId, setNewCategoryId] = useState('');
   const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<'merchants' | 'categories'>('merchants');
+  const [bulkCategoryId, setBulkCategoryId] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -308,11 +312,12 @@ export default function CategoryManagement() {
         description: `${transactionsToUpdate.length}개의 거래에 카테고리가 적용되었습니다.`,
       });
 
-      // 데이터 새로고침
+      // 데이터 새로고침 및 검색어 초기화 (미분류 항목들이 바로 보이도록)
       fetchTransactions();
       setShowCategoryDialog(false);
       setSelectedMerchant(null);
       setNewCategoryId('');
+      setSearchTerm('');
     } catch (error) {
       console.error('카테고리 일괄 적용 실패:', error);
       toast({
@@ -373,10 +378,63 @@ export default function CategoryManagement() {
         description: `${transactionsToUpdate.length}개의 거래에 "${suggestedCategory}" 카테고리가 적용되었습니다.`,
       });
 
-      // 데이터 새로고침
+      // 데이터 새로고침 및 검색어 초기화 (미분류 항목들이 바로 보이도록)
       fetchTransactions();
+      setSearchTerm('');
     } catch (error) {
       console.error('카테고리 자동 적용 실패:', error);
+      toast({
+        title: "오류",
+        description: "카테고리 적용에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkSelectedUpdate = async () => {
+    if (selectedMerchants.size === 0 || !bulkCategoryId) return;
+
+    try {
+      // 선택된 모든 가맹점의 거래들 수집
+      const selectedGroups = merchantGroups.filter(group => selectedMerchants.has(group.merchant));
+      const transactionsToUpdate = selectedGroups.flatMap(group => group.transactions.map(t => t.id));
+
+      // 일괄 업데이트
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: bulkCategoryId })
+        .in('id', transactionsToUpdate);
+
+      if (error) throw error;
+
+      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      for (const group of selectedGroups) {
+        const { error: mappingError } = await supabase
+          .from('merchant_category_mappings')
+          .upsert({
+            user_id: user?.id,
+            merchant_name: group.merchant,
+            category_id: bulkCategoryId
+          });
+        
+        if (mappingError) {
+          console.error('가맹점 매핑 저장 실패:', mappingError);
+        }
+      }
+
+      toast({
+        title: "일괄 분류 완료",
+        description: `${transactionsToUpdate.length}개의 거래에 카테고리가 적용되었습니다.`,
+      });
+
+      // 데이터 새로고침 및 선택 초기화
+      fetchTransactions();
+      setSelectedMerchants(new Set());
+      setBulkMode(false);
+      setBulkCategoryId('');
+      setSearchTerm('');
+    } catch (error) {
+      console.error('일괄 분류 실패:', error);
       toast({
         title: "오류",
         description: "카테고리 적용에 실패했습니다.",
@@ -515,11 +573,25 @@ export default function CategoryManagement() {
           </CardContent>
         </Card>
 
-        {/* 가맹점별 거래 리스트 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+        {/* 탭 네비게이션 */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'merchants' | 'categories')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="merchants" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
               가맹점별 거래 현황
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              카테고리 현황
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="merchants" className="space-y-6">
+            {/* 가맹점별 거래 리스트 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  가맹점별 거래 현황
               <div className="flex items-center gap-2">
                 <Button
                   variant={bulkMode ? "default" : "outline"}
@@ -544,25 +616,36 @@ export default function CategoryManagement() {
                       전체 선택
                     </Button>
                     {selectedMerchants.size > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const firstSelected = Array.from(selectedMerchants)[0];
-                          const group = merchantGroups.find(g => g.merchant === firstSelected);
-                          if (group) {
-                            setSelectedMerchant({
-                              ...group,
-                              transactions: merchantGroups
-                                .filter(g => selectedMerchants.has(g.merchant))
-                                .flatMap(g => g.transactions)
-                            });
-                            setShowCategoryDialog(true);
-                          }
-                        }}
-                      >
-                        선택된 {selectedMerchants.size}개 분류
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Select value={bulkCategoryId} onValueChange={setBulkCategoryId}>
+                          <SelectTrigger className="w-48">
+                            <SelectValue placeholder="카테고리 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories
+                              .filter(cat => cat.type === 'expense') // 대부분의 거래가 지출이므로
+                              .map(category => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="w-3 h-3 rounded-full" 
+                                      style={{ backgroundColor: category.color }}
+                                    />
+                                    {category.name}
+                                  </div>
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={handleBulkSelectedUpdate}
+                          disabled={!bulkCategoryId}
+                        >
+                          선택된 {selectedMerchants.size}개 분류
+                        </Button>
+                      </div>
                     )}
                   </>
                 )}
@@ -656,8 +739,15 @@ export default function CategoryManagement() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="categories" className="space-y-6">
+            {/* 카테고리 현황 및 관리 */}
+            <CategoryStatusCard categories={categories} transactions={transactions} user={user} onCategoriesChange={fetchCategories} />
+          </TabsContent>
+        </Tabs>
 
         {/* 카테고리 설정 다이얼로그 */}
         <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
