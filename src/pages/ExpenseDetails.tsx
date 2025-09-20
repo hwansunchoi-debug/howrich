@@ -722,6 +722,36 @@ export default function ExpenseDetails() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-medium">{transaction.description}</h3>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
+                          <span>{transaction.date}</span>
+                          {transaction.institution && (
+                            <Badge variant="secondary" className="text-xs">
+                              {transaction.institution}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* 인라인 대분류 수정 - Badge 스타일 */}
+                          <div className="relative">
+                            <Select 
+                              value={transaction.type} 
+                              onValueChange={(value: 'expense' | 'other') => handleInlineTypeUpdate(transaction.id, value)}
+                            >
+                              <SelectTrigger className={cn(
+                                "h-6 px-2 text-xs border-0 rounded-full w-auto min-w-[50px]",
+                                transaction.type === 'expense' 
+                                  ? "bg-red-100 text-red-800 hover:bg-red-200" 
+                                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                              )}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="expense">지출</SelectItem>
+                                <SelectItem value="other">기타</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           
                           {/* 인라인 카테고리 수정 - Badge 스타일 */}
                           <div className="relative">
@@ -749,35 +779,13 @@ export default function ExpenseDetails() {
                               </SelectContent>
                             </Select>
                           </div>
-                          
-                          {/* 인라인 대분류 수정 - Badge 스타일 */}
+
+                          {/* 결제수단 (미구현 - 향후 추가 예정) */}
                           <div className="relative">
-                            <Select 
-                              value={transaction.type} 
-                              onValueChange={(value: 'expense' | 'other') => handleInlineTypeUpdate(transaction.id, value)}
-                            >
-                              <SelectTrigger className={cn(
-                                "h-6 px-2 text-xs border-0 rounded-full w-auto min-w-[50px]",
-                                transaction.type === 'expense' 
-                                  ? "bg-red-100 text-red-800 hover:bg-red-200" 
-                                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
-                              )}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="expense">지출</SelectItem>
-                                <SelectItem value="other">기타</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>{transaction.date}</span>
-                          {transaction.institution && (
-                            <Badge variant="secondary" className="text-xs">
-                              {transaction.institution}
+                            <Badge variant="outline" className="text-xs h-6 px-2">
+                              결제수단
                             </Badge>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
