@@ -310,9 +310,13 @@ export default function ExpenseDetails() {
       const { error } = await supabase
         .from('transactions')
         .update({ type: newType })
-        .eq('id', transactionId);
+        .eq('id', transactionId)
+        .eq('user_id', user?.id); // Add user_id check for security
 
-      if (error) throw error;
+      if (error) {
+        console.error('대분류 수정 오류:', error);
+        throw error;
+      }
 
       toast({
         title: "대분류 수정 완료",
@@ -325,7 +329,7 @@ export default function ExpenseDetails() {
       console.error('대분류 수정 실패:', error);
       toast({
         title: "오류",
-        description: "대분류 수정에 실패했습니다.",
+        description: "대분류 수정에 실패했습니다. 다시 시도해주세요.",
         variant: "destructive",
       });
     }
@@ -336,9 +340,13 @@ export default function ExpenseDetails() {
       const { error } = await supabase
         .from('transactions')
         .update({ category_id: categoryId })
-        .eq('id', transactionId);
+        .eq('id', transactionId)
+        .eq('user_id', user?.id); // Add user_id check for security
 
-      if (error) throw error;
+      if (error) {
+        console.error('카테고리 수정 오류:', error);
+        throw error;
+      }
 
       const categoryName = categories.find(c => c.id === categoryId)?.name || '선택된 카테고리';
       toast({
@@ -352,7 +360,7 @@ export default function ExpenseDetails() {
       console.error('카테고리 수정 실패:', error);
       toast({
         title: "오류",
-        description: "카테고리 수정에 실패했습니다.",
+        description: "카테고리 수정에 실패했습니다. 다시 시도해주세요.",
         variant: "destructive",
       });
     }
@@ -557,12 +565,24 @@ export default function ExpenseDetails() {
             <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
               <div className="flex items-center gap-2 flex-1">
                 <Search className="h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="거래내역, 금융기관, 카테고리로 검색..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-md"
-                />
+                <div className="relative max-w-md">
+                  <Input
+                    placeholder="거래내역, 금융기관, 카테고리로 검색..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pr-8"
+                  />
+                  {searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 hover:bg-muted"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
               
               <div className="flex items-center gap-2">
@@ -700,47 +720,56 @@ export default function ExpenseDetails() {
                         />
                       )}
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-medium">{transaction.description}</h3>
                           
-                          {/* 인라인 카테고리 수정 */}
-                          <Select 
-                            value={transaction.category_id || ''} 
-                            onValueChange={(value) => handleInlineCategoryUpdate(transaction.id, value)}
-                          >
-                            <SelectTrigger className="w-28 h-6 text-xs">
-                              <SelectValue placeholder="카테고리" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories
-                                .filter(cat => cat.type === transaction.type)
-                                .map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  <div className="flex items-center gap-2">
-                                    <div 
-                                      className="w-2 h-2 rounded-full" 
-                                      style={{ backgroundColor: category.color }}
-                                    />
-                                    {category.name}
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* 인라인 카테고리 수정 - Badge 스타일 */}
+                          <div className="relative">
+                            <Select 
+                              value={transaction.category_id || ''} 
+                              onValueChange={(value) => handleInlineCategoryUpdate(transaction.id, value)}
+                            >
+                              <SelectTrigger className="h-6 px-2 text-xs bg-muted hover:bg-muted/80 border-0 rounded-full min-w-[80px] w-auto">
+                                <SelectValue placeholder="카테고리" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {categories
+                                  .filter(cat => cat.type === transaction.type)
+                                  .map((category) => (
+                                  <SelectItem key={category.id} value={category.id}>
+                                    <div className="flex items-center gap-2">
+                                      <div 
+                                        className="w-2 h-2 rounded-full" 
+                                        style={{ backgroundColor: category.color }}
+                                      />
+                                      {category.name}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                           
-                          {/* 인라인 대분류 수정 */}
-                          <Select 
-                            value={transaction.type} 
-                            onValueChange={(value: 'expense' | 'other') => handleInlineTypeUpdate(transaction.id, value)}
-                          >
-                            <SelectTrigger className="w-16 h-6 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="expense">지출</SelectItem>
-                              <SelectItem value="other">기타</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {/* 인라인 대분류 수정 - Badge 스타일 */}
+                          <div className="relative">
+                            <Select 
+                              value={transaction.type} 
+                              onValueChange={(value: 'expense' | 'other') => handleInlineTypeUpdate(transaction.id, value)}
+                            >
+                              <SelectTrigger className={cn(
+                                "h-6 px-2 text-xs border-0 rounded-full w-auto min-w-[50px]",
+                                transaction.type === 'expense' 
+                                  ? "bg-red-100 text-red-800 hover:bg-red-200" 
+                                  : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                              )}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="expense">지출</SelectItem>
+                                <SelectItem value="other">기타</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{transaction.date}</span>
