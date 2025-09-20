@@ -54,7 +54,6 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
           *,
           category:categories(id, name, color, type)
         `)
-        .eq('user_id', user?.id)
         .order('merchant_name');
 
       if (error) throw error;
@@ -86,7 +85,21 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
         .order('name');
 
       if (error) throw error;
-      setCategories((data || []).map(cat => ({
+      
+      // 중복 제거 로직 추가
+      const uniqueCategories = (data || []).reduce((acc, cat) => {
+        const existing = acc.find(c => c.name === cat.name && c.type === cat.type);
+        if (!existing) {
+          acc.push(cat);
+        } else if (cat.user_id === null && existing.user_id !== null) {
+          // 기본 카테고리를 우선순위로 선택
+          const index = acc.findIndex(c => c.id === existing.id);
+          acc[index] = cat;
+        }
+        return acc;
+      }, [] as any[]);
+      
+      setCategories(uniqueCategories.map(cat => ({
         ...cat,
         type: cat.type as 'income' | 'expense'
       })));

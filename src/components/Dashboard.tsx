@@ -471,24 +471,21 @@ export const Dashboard = () => {
         </div>
 
         {/* Charts and Transactions */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-6">
-            <ExpenseChart onDataRefresh={fetchMonthlyData} />
-            <YearlyChart />
-          </div>
-          <div>
-            <RecentTransactions onDataRefresh={fetchMonthlyData} />
-          </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <AssetTrendChart2025Enhanced />
+          <ExpenseChart onDataRefresh={fetchMonthlyData} />
+        </div>
+        
+        <div className="grid gap-6 lg:grid-cols-2">
+          <RecentTransactions onDataRefresh={fetchMonthlyData} />
+          <CategoryManagementCard />
         </div>
 
-        {/* Asset Charts */}
+        {/* Additional Charts */}
         <div className="grid gap-6 lg:grid-cols-2">
           <AssetTrendChartEnhanced />
-          <AssetTrendChart2025Enhanced />
+          <YearlyChart />
         </div>
-
-        {/* Category Management */}
-        <CategoryManagementCard />
         
 
         {/* Initial Setup Access */}

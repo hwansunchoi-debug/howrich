@@ -80,7 +80,21 @@ export default function CategoryManagement() {
         .order('name');
 
       if (error) throw error;
-      setCategories((data || []) as Category[]);
+      
+      // 중복 제거 로직 추가
+      const uniqueCategories = (data || []).reduce((acc, cat) => {
+        const existing = acc.find(c => c.name === cat.name && c.type === cat.type);
+        if (!existing) {
+          acc.push(cat);
+        } else if (cat.user_id === null && existing.user_id !== null) {
+          // 기본 카테고리를 우선순위로 선택
+          const index = acc.findIndex(c => c.id === existing.id);
+          acc[index] = cat;
+        }
+        return acc;
+      }, [] as any[]);
+      
+      setCategories(uniqueCategories as Category[]);
     } catch (error) {
       console.error('카테고리 조회 실패:', error);
     }
@@ -293,12 +307,11 @@ export default function CategoryManagement() {
 
       if (error) throw error;
 
-      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      // 가맹점별 카테고리 매핑 저장 (전역으로 저장)
       for (const merchant of allMerchants) {
         const { error: mappingError } = await supabase
           .from('merchant_category_mappings')
           .upsert({
-            user_id: user?.id,
             merchant_name: merchant,
             category_id: newCategoryId
           });
@@ -359,12 +372,11 @@ export default function CategoryManagement() {
 
       if (error) throw error;
 
-      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      // 가맹점별 카테고리 매핑 저장 (전역으로 저장)
       for (const merchantName of allMerchants) {
         const { error: mappingError } = await supabase
           .from('merchant_category_mappings')
           .upsert({
-            user_id: user?.id,
             merchant_name: merchantName,
             category_id: category.id
           });
@@ -408,12 +420,11 @@ export default function CategoryManagement() {
 
       if (error) throw error;
 
-      // 가맹점별 카테고리 매핑 저장 (학습 기능)
+      // 가맹점별 카테고리 매핑 저장 (전역으로 저장)
       for (const group of selectedGroups) {
         const { error: mappingError } = await supabase
           .from('merchant_category_mappings')
           .upsert({
-            user_id: user?.id,
             merchant_name: group.merchant,
             category_id: bulkCategoryId
           });
@@ -459,7 +470,6 @@ export default function CategoryManagement() {
       const { data, error } = await supabase
         .from('merchant_category_mappings')
         .select('category_id')
-        .eq('user_id', user?.id)
         .eq('merchant_name', merchant)
         .single();
 
