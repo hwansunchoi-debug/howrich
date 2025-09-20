@@ -58,12 +58,17 @@ export class CSVParser {
    * 템플릿을 사용해서 단일 행을 거래내역으로 파싱
    */
   private static parseTransactionWithTemplate(row: string[], template: BankTemplate, lineNumber: number): TransactionRow | null {
+    console.log(`라인 ${lineNumber} 파싱 중:`, row);
+    
     // 날짜 추출
     const dateValue = template.columns.date !== undefined ? row[template.columns.date] : '';
+    console.log(`날짜 원본:`, dateValue);
+    
     const normalizedDate = this.normalizeDate(dateValue);
     if (!normalizedDate) {
       throw new Error(`잘못된 날짜 형식: ${dateValue}`);
     }
+    console.log(`정규화된 날짜:`, normalizedDate);
 
     // 설명/내용 추출
     let description = '';
@@ -76,6 +81,7 @@ export class CSVParser {
     if (!description.trim()) {
       throw new Error('거래 내용이 비어있습니다.');
     }
+    console.log(`설명:`, description);
 
     // 금액 및 타입 추출
     let amount = 0;
@@ -92,8 +98,12 @@ export class CSVParser {
       const withdrawalStr = row[template.columns.withdrawal] || '';
       const depositStr = row[template.columns.deposit] || '';
       
+      console.log(`지출금액:`, withdrawalStr, `수입금액:`, depositStr);
+      
       const withdrawalAmount = this.extractAmount(withdrawalStr);
       const depositAmount = this.extractAmount(depositStr);
+      
+      console.log(`파싱된 지출:`, withdrawalAmount, `파싱된 수입:`, depositAmount);
       
       if (withdrawalAmount > 0) {
         amount = withdrawalAmount;
@@ -102,16 +112,20 @@ export class CSVParser {
         amount = depositAmount;
         type = 'income';
       } else {
-        throw new Error('금액 정보가 없습니다.');
+        // 둘 다 0인 경우 해당 행 건너뛰기
+        console.log(`금액이 모두 0인 행 건너뛰기: 라인 ${lineNumber}`);
+        return null;
       }
     } else {
       throw new Error('금액 컬럼을 찾을 수 없습니다.');
     }
 
-    // 금액 검증
-    if (isNaN(amount) || amount <= 0) {
+    // 금액 검증 (0 허용하도록 수정)
+    if (isNaN(amount)) {
       throw new Error(`잘못된 금액: ${amount}`);
     }
+
+    console.log(`최종 거래:`, { date: normalizedDate, description: description.trim(), amount, type });
 
     return {
       date: normalizedDate,

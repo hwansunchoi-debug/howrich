@@ -53,6 +53,8 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
       
       const isXLSX = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.name.endsWith('.xlsx');
       
+      console.log('파일 업로드 시작:', file.name, '형식:', isXLSX ? 'XLSX' : 'CSV');
+      
       if (isXLSX) {
         // XLSX 파일 처리
         const arrayBuffer = await file.arrayBuffer();
@@ -63,6 +65,10 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
         // 시트를 배열로 변환
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
         parsedData = jsonData.map(row => (row as any[]).map(cell => String(cell || '')));
+        
+        console.log('XLSX 파싱 완료, 행 수:', parsedData.length);
+        console.log('첫 번째 행 (헤더):', parsedData[0]);
+        console.log('두 번째 행 (첫 데이터):', parsedData[1]);
       } else {
         // CSV 파일 처리
         const text = await file.text();
@@ -93,6 +99,7 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
       }
       
       if (parsedData.length === 0) {
+        console.log('오류: 빈 파일 감지됨');
         toast({
           variant: "destructive",
           title: "빈 파일",
@@ -101,10 +108,12 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
         return;
       }
 
+      console.log('파싱 완료, 매핑 다이얼로그 표시');
       setCsvData(parsedData);
       setShowMappingDialog(true);
       
     } catch (error) {
+      console.error('파일 업로드 오류:', error);
       toast({
         variant: "destructive",
         title: "파일 읽기 실패",
