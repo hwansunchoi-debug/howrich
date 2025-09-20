@@ -53,8 +53,10 @@ export default function CategoryManagement() {
   const [merchantGroups, setMerchantGroups] = useState<MerchantGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategoryType, setSelectedCategoryType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
+  const [sortBy, setSortBy] = useState<'count' | 'amount'>('count');
   const [selectedMerchant, setSelectedMerchant] = useState<MerchantGroup | null>(null);
   const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   const [newCategoryId, setNewCategoryId] = useState('');
@@ -72,7 +74,7 @@ export default function CategoryManagement() {
 
   useEffect(() => {
     groupTransactionsByMerchant();
-  }, [transactions, selectedCategory, searchTerm]);
+  }, [transactions, selectedCategory, selectedCategoryType, searchTerm, sortBy]);
 
   const fetchCategories = async () => {
     try {
@@ -138,13 +140,18 @@ export default function CategoryManagement() {
   const groupTransactionsByMerchant = async () => {
     let filteredTransactions = transactions;
 
+    // 대분류 필터 적용
+    if (selectedCategoryType !== 'all') {
+      filteredTransactions = filteredTransactions.filter(t => t.type === selectedCategoryType);
+    }
+
     // 기본적으로 미분류 거래만 보여주기 (카테고리 분류가 완료된 가맹점은 숨기기)
     if (selectedCategory === 'all') {
-      filteredTransactions = transactions.filter(t => !t.category_id);
+      filteredTransactions = filteredTransactions.filter(t => !t.category_id);
     } else if (selectedCategory === 'uncategorized') {
-      filteredTransactions = transactions.filter(t => !t.category_id);
+      filteredTransactions = filteredTransactions.filter(t => !t.category_id);
     } else if (selectedCategory !== 'all') {
-      filteredTransactions = transactions.filter(t => t.category?.id === selectedCategory);
+      filteredTransactions = filteredTransactions.filter(t => t.category?.id === selectedCategory);
     }
 
     // 검색어 필터링
@@ -210,7 +217,18 @@ export default function CategoryManagement() {
       })
     );
 
-    setMerchantGroups(merchantGroups.sort((a, b) => b.transactions.length - a.transactions.length));
+    // 정렬 적용
+    const sortedMerchantGroups = merchantGroups.sort((a, b) => {
+      if (sortBy === 'amount') {
+        const totalAmountA = a.transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+        const totalAmountB = b.transactions.reduce((sum, t) => sum + Number(t.amount), 0);
+        return totalAmountB - totalAmountA; // 내림차순
+      } else {
+        return b.transactions.length - a.transactions.length; // 거래 건수 순
+      }
+    });
+
+    setMerchantGroups(sortedMerchantGroups);
   };
 
   const extractMerchantName = (description: string): string => {
@@ -595,7 +613,22 @@ export default function CategoryManagement() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">대분류 필터</label>
+                    <Select value={selectedCategoryType} onValueChange={setSelectedCategoryType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="expense">지출</SelectItem>
+                        <SelectItem value="income">수입</SelectItem>
+                        <SelectItem value="other">기타</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
                   <div>
                     <label className="text-sm font-medium mb-2 block">카테고리 필터</label>
                     <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -607,14 +640,16 @@ export default function CategoryManagement() {
                         <SelectItem value="uncategorized">
                           미분류 ({uncategorizedCount}건)
                         </SelectItem>
-                        {categories.map(category => {
-                          const count = transactions.filter(t => t.category?.id === category.id).length;
-                          return (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name} ({count}건)
-                            </SelectItem>
-                          );
-                        })}
+                        {categories
+                          .filter(cat => selectedCategoryType === 'all' || cat.type === selectedCategoryType)
+                          .map(category => {
+                            const count = transactions.filter(t => t.category?.id === category.id).length;
+                            return (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name} ({count}건)
+                              </SelectItem>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -627,14 +662,50 @@ export default function CategoryManagement() {
                         placeholder="가맹점명 검색..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 pr-10"
                       />
+                      {searchTerm && (
+                        <button
+                          onClick={() => setSearchTerm('')}
+                          className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground"
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
                 
-                <div className="text-sm text-muted-foreground">
-                  현재 필터: {getFilteredCount()}건의 거래, {merchantGroups.length}개의 가맹점
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    현재 필터: {getFilteredCount()}건의 거래, {merchantGroups.length}개의 가맹점
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {searchTerm && merchantGroups.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newSelected = new Set(selectedMerchants);
+                          merchantGroups.forEach(group => newSelected.add(group.merchant));
+                          setSelectedMerchants(newSelected);
+                        }}
+                      >
+                        검색 결과 전체 선택
+                      </Button>
+                    )}
+                    
+                    <Select value={sortBy} onValueChange={(value: 'count' | 'amount') => setSortBy(value)}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="count">거래건수 순</SelectItem>
+                        <SelectItem value="amount">금액순</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -817,7 +888,11 @@ export default function CategoryManagement() {
                             <SelectContent>
                               <SelectItem value="uncategorized">미분류</SelectItem>
                               {categories
-                                .filter(cat => cat.type === group.transactions[0]?.type || cat.type === 'expense')
+                                .filter(cat => {
+                                  // 현재 거래의 대분류에 따라 카테고리 필터링
+                                  const currentType = group.transactions[0]?.type;
+                                  return cat.type === currentType || (currentType === 'expense' && cat.type === 'expense');
+                                })
                                 .map(category => (
                                 <SelectItem key={category.id} value={category.id}>
                                   <div className="flex items-center gap-2">

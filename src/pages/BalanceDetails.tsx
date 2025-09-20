@@ -64,25 +64,55 @@ export default function BalanceDetails() {
     if (!user) return;
 
     try {
+      // 마스터 사용자인지 확인하고 가족 구성원 목록 조회
+      const { data: masterCheck } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      const isMaster = masterCheck?.role === 'master';
+      let userIds = [user.id];
+
+      if (isMaster) {
+        // 가족 구성원 ID들 조회
+        const { data: familyMembers } = await supabase
+          .from('family_members')
+          .select('member_id')
+          .eq('owner_id', user.id);
+        
+        if (familyMembers) {
+          userIds = [user.id, ...familyMembers.map(m => m.member_id)];
+        }
+      }
+
       // 선택된 날짜의 스냅샷 조회
       const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
-      const { data: snapshot } = await supabase
+      const { data: snapshots } = await supabase
         .from('balance_snapshots')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('snapshot_date', selectedDateStr)
-        .maybeSingle();
+        .in('user_id', userIds)
+        .eq('snapshot_date', selectedDateStr);
 
-      if (snapshot) {
-        // 스냅샷 데이터가 있으면 사용
-        setBalances((snapshot.account_details as unknown as AccountBalance[]) || []);
-        setTotalBalance(Number(snapshot.total_balance));
+      if (snapshots && snapshots.length > 0) {
+        // 스냅샷 데이터가 있으면 사용 (모든 사용자의 계좌 합치기)
+        const allAccountDetails: AccountBalance[] = [];
+        let totalFromSnapshots = 0;
+
+        snapshots.forEach(snapshot => {
+          const accountDetails = (snapshot.account_details as unknown as AccountBalance[]) || [];
+          allAccountDetails.push(...accountDetails);
+          totalFromSnapshots += Number(snapshot.total_balance);
+        });
+
+        setBalances(allAccountDetails);
+        setTotalBalance(totalFromSnapshots);
       } else {
         // 스냅샷이 없으면 최신 계좌 잔액 조회
         const { data, error } = await supabase
           .from('account_balances')
           .select('*')
-          .eq('user_id', user.id)
+          .in('user_id', userIds)
           .order('last_updated', { ascending: false });
 
         if (error) throw error;

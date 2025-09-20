@@ -66,6 +66,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [userList, setUserList] = useState<any[]>([]);
 
   const predefinedColors = [
@@ -78,7 +79,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
     if (isMaster) {
       fetchUserList();
     }
-  }, [categories, transactions, selectedUserId, selectedYear, selectedMonth, isMaster]);
+  }, [categories, transactions, selectedUserId, selectedYear, selectedMonth, searchTerm, isMaster]);
 
   const fetchUserList = async () => {
     try {
@@ -114,6 +115,14 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
     if (selectedMonth !== 'all') {
       filteredTransactions = filteredTransactions.filter(t => 
         (new Date(t.date).getMonth() + 1).toString() === selectedMonth
+      );
+    }
+    
+    // 검색 필터
+    if (searchTerm) {
+      filteredTransactions = filteredTransactions.filter(t => 
+        t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        t.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -300,56 +309,67 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            {isMaster && (
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-3">
+              {isMaster && (
+                <div>
+                  <label className="text-sm font-medium mb-2 block">사용자</label>
+                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="사용자 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {userList.map((user) => (
+                        <SelectItem key={user.user_id} value={user.user_id}>
+                          {user.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div>
-                <label className="text-sm font-medium mb-2 block">사용자</label>
-                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <label className="text-sm font-medium mb-2 block">연도</label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
                   <SelectTrigger>
-                    <SelectValue placeholder="사용자 선택" />
+                    <SelectValue placeholder="연도 선택" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
-                    {userList.map((user) => (
-                      <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.display_name}
+                    <SelectItem value="2023">2023년</SelectItem>
+                    <SelectItem value="2024">2024년</SelectItem>
+                    <SelectItem value="2025">2025년</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium mb-2 block">월</label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="월 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    {Array.from({length: 12}, (_, i) => (
+                      <SelectItem key={i + 1} value={(i + 1).toString()}>
+                        {i + 1}월
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            
-            <div>
-              <label className="text-sm font-medium mb-2 block">연도</label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger>
-                  <SelectValue placeholder="연도 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="2023">2023년</SelectItem>
-                  <SelectItem value="2024">2024년</SelectItem>
-                  <SelectItem value="2025">2025년</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-2 block">월</label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                  <SelectValue placeholder="월 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  {Array.from({length: 12}, (_, i) => (
-                    <SelectItem key={i + 1} value={(i + 1).toString()}>
-                      {i + 1}월
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium mb-2 block">검색</label>
+              <Input
+                placeholder="카테고리명 또는 거래내역 검색..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
         </CardContent>

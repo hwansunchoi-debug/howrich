@@ -100,11 +100,15 @@ export const YearlyChart = () => {
 
       const { data: incomeData } = await incomeQuery;
       
-      // 월별 지출 조회
+      // 월별 지출 조회 (기타 카테고리 제외)
       let expenseQuery = supabase
         .from('transactions')
-        .select('amount')
+        .select(`
+          amount,
+          categories!inner(type)
+        `)
         .eq('type', 'expense')
+        .neq('categories.type', 'other')
         .gte('date', startDate)
         .lt('date', endDate);
 
