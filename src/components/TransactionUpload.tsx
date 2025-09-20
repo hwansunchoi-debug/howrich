@@ -160,12 +160,16 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
             <Alert>
               <FileText className="h-4 w-4" />
               <AlertDescription>
+                <strong>권장 엑셀 양식:</strong><br />
+                금융기관 | 날짜 | 내용(가맹점명) | 수입금액 | 지출금액 | 구분(수입/지출)<br /><br />
+                
                 <strong>지원되는 금융기관:</strong><br />
                 • <strong>은행:</strong> KB국민, 신한, 우리, 하나, NH농협<br />
                 • <strong>카드:</strong> 우리카드, 삼성카드, 현대카드, 신한카드, KB국민카드<br />
                 • <strong>증권:</strong> 키움증권, 미래에셋증권<br />
                 • <strong>범용:</strong> 모든 CSV 형식 (컬럼 수동 매핑)<br /><br />
-                파일 업로드 후 자동으로 형식을 감지하고 데이터 매핑을 확인할 수 있습니다.
+                
+                <strong>자동 카테고리 분류:</strong> 내용을 기반으로 식비, 교통비, 쇼핑 등 카테고리가 자동으로 분류됩니다.
               </AlertDescription>
             </Alert>
 

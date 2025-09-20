@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { BankTemplate } from './bankTemplates';
+import { CategoryClassifier } from './categoryClassifier';
 
 interface TransactionRow {
   date: string;
@@ -317,10 +318,17 @@ export class CSVParser {
 
     for (const transaction of transactions) {
       try {
-        // 카테고리 처리
+        // 카테고리 처리 - 기존 카테고리가 없으면 자동 분류 시도
         let categoryId = null;
-        if (transaction.category) {
-          categoryId = await this.findOrCreateCategory(transaction.category, transaction.type);
+        let categoryName = transaction.category;
+        
+        if (!categoryName) {
+          // 자동 카테고리 분류 시도
+          categoryName = CategoryClassifier.classifyCategory(transaction.description, transaction.type);
+        }
+        
+        if (categoryName) {
+          categoryId = await this.findOrCreateCategory(categoryName, transaction.type);
         }
 
         // 거래내역 저장

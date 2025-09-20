@@ -221,6 +221,20 @@ export const bankTemplates: BankTemplate[] = [
     dateFormat: 'auto',
     hasHeader: false,
     sampleColumns: ['날짜', '내용', '출금', '입금']
+  },
+  {
+    id: 'excel_standard',
+    name: '권장 엑셀 양식 (금융기관, 날짜, 내용, 수입금액, 지출금액, 구분)',
+    category: 'other',
+    columns: {
+      date: 1,        // 날짜
+      description: 2, // 내용(가맹점명)
+      deposit: 3,     // 수입금액
+      withdrawal: 4,  // 지출금액
+    },
+    dateFormat: 'auto',
+    hasHeader: true,
+    sampleColumns: ['금융기관', '날짜', '내용', '수입금액', '지출금액', '구분']
   }
 ];
 
