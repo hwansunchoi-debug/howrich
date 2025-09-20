@@ -284,40 +284,66 @@ export class CSVParser {
    * 날짜를 YYYY-MM-DD 형식으로 정규화
    */
   private static normalizeDate(dateStr: string): string | null {
-    const cleanDate = dateStr.replace(/[^\d.-]/g, '');
+    console.log('날짜 정규화 시작:', dateStr);
+    
+    if (!dateStr || typeof dateStr !== 'string') {
+      console.log('유효하지 않은 날짜 문자열');
+      return null;
+    }
+    
+    // 숫자만 추출 (점, 대시, 슬래시 포함)
+    const cleanDate = dateStr.toString().replace(/[^\d.\-\/]/g, '');
+    console.log('정리된 날짜 문자열:', cleanDate);
     
     // 다양한 날짜 형식 처리
     const patterns = [
       /^(\d{4})-(\d{1,2})-(\d{1,2})$/, // YYYY-MM-DD
       /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/, // YYYY.MM.DD
+      /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/, // YYYY/MM/DD
       /^(\d{4})(\d{2})(\d{2})$/, // YYYYMMDD
       /^(\d{1,2})-(\d{1,2})-(\d{4})$/, // MM-DD-YYYY 또는 DD-MM-YYYY
       /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/, // MM.DD.YYYY 또는 DD.MM.YYYY
+      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, // MM/DD/YYYY 또는 DD/MM/YYYY
     ];
 
     for (const pattern of patterns) {
       const match = cleanDate.match(pattern);
       if (match) {
+        console.log('패턴 매칭됨:', pattern.source, match);
         let year: number, month: number, day: number;
         
         if (pattern.source.startsWith('^(\\d{4})')) {
-          // YYYY-MM-DD 형식
+          // YYYY-MM-DD, YYYY.MM.DD, YYYY/MM/DD 형식
           [, year, month, day] = match.map(Number);
         } else {
           // MM-DD-YYYY 또는 DD-MM-YYYY 형식 (한국은 보통 DD-MM-YYYY)
           [, day, month, year] = match.map(Number);
         }
         
+        console.log('추출된 날짜 요소:', { year, month, day });
+        
         // 날짜 유효성 검사
-        if (year < 2000 || year > 2030) return null;
-        if (month < 1 || month > 12) return null;
-        if (day < 1 || day > 31) return null;
+        if (year < 1900 || year > 2099) {
+          console.log('연도 범위 오류:', year);
+          continue;
+        }
+        if (month < 1 || month > 12) {
+          console.log('월 범위 오류:', month);
+          continue;
+        }
+        if (day < 1 || day > 31) {
+          console.log('일 범위 오류:', day);
+          continue;
+        }
         
         // YYYY-MM-DD 형식으로 반환
-        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        const result = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        console.log('정규화 완료:', result);
+        return result;
       }
     }
     
+    console.log('날짜 패턴 매칭 실패');
     return null;
   }
 
