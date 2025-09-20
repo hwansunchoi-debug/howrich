@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { smsParser } from './smsParser';
 import { duplicateDetector } from './duplicateDetector';
+import { balanceTracker } from './balanceTracker';
 
 declare global {
   interface Window {

@@ -9,6 +9,7 @@ import { BudgetManager } from "./BudgetManager";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
+import { historicalDataProcessor } from "@/services/historicalDataProcessor";
 import { useToast } from "@/hooks/use-toast";
 import { Capacitor } from "@capacitor/core";
 
@@ -20,6 +21,7 @@ export const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
+  const [isProcessingHistory, setIsProcessingHistory] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,6 +64,38 @@ export const Dashboard = () => {
         description: "앱 알림 읽기 권한을 허용해주세요.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleProcessHistoricalData = async () => {
+    if (isProcessingHistory) return;
+
+    setIsProcessingHistory(true);
+    
+    toast({
+      title: "과거 데이터 처리 시작",
+      description: "기존 문자와 알림에서 거래내역을 추출하고 있습니다. 시간이 걸릴 수 있습니다.",
+    });
+
+    try {
+      await historicalDataProcessor.processHistoricalData();
+      
+      toast({
+        title: "과거 데이터 처리 완료",
+        description: "기존 거래내역과 잔액 정보가 모두 등록되었습니다.",
+      });
+      
+      // 데이터 새로고침
+      fetchMonthlyData();
+      
+    } catch (error) {
+      toast({
+        title: "과거 데이터 처리 실패",
+        description: "일부 데이터 처리 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingHistory(false);
     }
   };
 
@@ -122,45 +156,77 @@ export const Dashboard = () => {
 
         {/* SMS and Notification Auto Recognition */}
         {smsEnabled && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className="bg-gradient-primary text-white shadow-elevated">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">SMS 자동 인식</CardTitle>
-                <Smartphone className="h-4 w-4 text-white/90" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-lg font-bold mb-2">카드/은행 문자 감지</div>
-                <p className="text-xs text-white/80 mb-4">
-                  카드 결제, 계좌 이체 문자를 자동으로 인식
-                </p>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  onClick={handleEnableSMS}
-                  className="w-full"
-                >
-                  SMS 자동 인식 활성화
-                </Button>
-              </CardContent>
-            </Card>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="bg-gradient-primary text-white shadow-elevated">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">SMS 자동 인식</CardTitle>
+                  <Smartphone className="h-4 w-4 text-white/90" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold mb-2">카드/은행 문자 감지</div>
+                  <p className="text-xs text-white/80 mb-4">
+                    카드 결제, 계좌 이체 문자를 자동으로 인식
+                  </p>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleEnableSMS}
+                    className="w-full"
+                  >
+                    SMS 자동 인식 활성화
+                  </Button>
+                </CardContent>
+              </Card>
 
-            <Card className="bg-gradient-success text-white shadow-elevated">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">푸시 알림 인식</CardTitle>
-                <Bell className="h-4 w-4 text-white/90" />
+              <Card className="bg-gradient-success text-white shadow-elevated">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-white/90">푸시 알림 인식</CardTitle>
+                  <Bell className="h-4 w-4 text-white/90" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold mb-2">간편결제 알림 감지</div>
+                  <p className="text-xs text-white/80 mb-4">
+                    네이버페이, 카카오페이 등 앱 알림 자동 인식
+                  </p>
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleEnableNotifications}
+                    className="w-full"
+                  >
+                    푸시 알림 인식 활성화
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Historical Data Processing */}
+            <Card className="bg-gradient-card shadow-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  📚 기존 데이터 불러오기
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-lg font-bold mb-2">간편결제 알림 감지</div>
-                <p className="text-xs text-white/80 mb-4">
-                  네이버페이, 카카오페이 등 앱 알림 자동 인식
+                <p className="text-sm text-muted-foreground mb-4">
+                  휴대폰에 있는 기존 문자와 알림에서 거래내역과 잔액 정보를 자동으로 추출합니다.
+                  <br />
+                  최근 3개월간의 모든 금융 관련 문자를 분석하여 가계부를 완성합니다.
                 </p>
                 <Button 
-                  variant="secondary" 
-                  size="sm" 
-                  onClick={handleEnableNotifications}
+                  onClick={handleProcessHistoricalData}
+                  disabled={isProcessingHistory}
                   className="w-full"
                 >
-                  푸시 알림 인식 활성화
+                  {isProcessingHistory ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      과거 데이터 처리 중...
+                    </>
+                  ) : (
+                    '📊 기존 거래내역 불러오기'
+                  )}
                 </Button>
               </CardContent>
             </Card>
