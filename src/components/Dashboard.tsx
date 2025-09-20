@@ -7,14 +7,17 @@ import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { BudgetManager } from "./BudgetManager";
 import { InitialSetup } from "./InitialSetup";
+import { UserHeader } from "./UserHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
 import { historicalDataProcessor } from "@/services/historicalDataProcessor";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Capacitor } from "@capacitor/core";
 
 export const Dashboard = () => {
+  const { user } = useAuth();
   const [monthlyData, setMonthlyData] = useState({
     income: 0,
     expense: 0,
@@ -24,13 +27,16 @@ export const Dashboard = () => {
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [isProcessingHistory, setIsProcessingHistory] = useState(false);
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
+  const [selectedView, setSelectedView] = useState<'me' | 'spouse' | 'family'>('me');
   const { toast } = useToast();
 
   useEffect(() => {
-    checkSetupStatus();
-    fetchMonthlyData();
-    checkMobilePlatform();
-  }, []);
+    if (user) {
+      checkSetupStatus();
+      fetchMonthlyData();
+      checkMobilePlatform();
+    }
+  }, [user, selectedView]);
 
   const checkMobilePlatform = () => {
     if (Capacitor.isNativePlatform()) {
@@ -103,10 +109,13 @@ export const Dashboard = () => {
   };
 
   const checkSetupStatus = async () => {
+    if (!user) return;
+    
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('user_settings')
         .select('setup_completed')
+        .eq('user_id', user.id)
         .single();
 
       if (error) {
@@ -123,14 +132,51 @@ export const Dashboard = () => {
   };
 
   const fetchMonthlyData = async () => {
+    if (!user) return;
+    
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
+    
+    // 선택된 뷰에 따라 사용자 ID 결정
+    let userIds: string[] = [user.id];
+    
+    if (selectedView === 'spouse') {
+      // 아내 데이터만 (추후 가족 구성원 테이블에서 가져옴)
+      const { data: familyMembers } = await supabase
+        .from('family_members')
+        .select('member_id')
+        .eq('owner_id', user.id)
+        .eq('relationship', 'spouse');
+      
+      if (familyMembers && familyMembers.length > 0) {
+        userIds = familyMembers.map(m => m.member_id);
+      } else {
+        userIds = []; // 아내 데이터 없음
+      }
+    } else if (selectedView === 'family') {
+      // 나 + 가족 모든 데이터
+      const { data: familyMembers } = await supabase
+        .from('family_members')
+        .select('member_id')
+        .eq('owner_id', user.id);
+      
+      if (familyMembers) {
+        userIds = [user.id, ...familyMembers.map(m => m.member_id)];
+      }
+    }
+    
+    if (userIds.length === 0) {
+      setMonthlyData({ income: 0, expense: 0, balance: 0 });
+      setLoading(false);
+      return;
+    }
     
     // 이번 달 수입 조회
     const { data: incomeData } = await supabase
       .from('transactions')
       .select('amount')
       .eq('type', 'income')
+      .in('user_id', userIds)
       .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
       .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
     
@@ -139,6 +185,7 @@ export const Dashboard = () => {
       .from('transactions')
       .select('amount')
       .eq('type', 'expense')
+      .in('user_id', userIds)
       .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
       .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
 
@@ -161,10 +208,31 @@ export const Dashboard = () => {
     }).format(amount);
   };
 
+  const handleDataExport = () => {
+    // 데이터 내보내기 구현 (추후)
+    toast({
+      title: "데이터 내보내기",
+      description: "곧 지원될 예정입니다."
+    });
+  };
+
+  const handleDataImport = () => {
+    // 데이터 가져오기 구현 (추후)
+    toast({
+      title: "데이터 가져오기", 
+      description: "곧 지원될 예정입니다."
+    });
+  };
+
   const handleSetupComplete = () => {
     setSetupCompleted(true);
     checkMobilePlatform(); // 설정 완료 후 모바일 기능 활성화
   };
+
+  // 사용자가 로그인하지 않은 경우
+  if (!user) {
+    return null;
+  }
 
   // 로딩 중이거나 설정 상태를 확인 중인 경우
   if (loading || setupCompleted === null) {
@@ -186,18 +254,19 @@ export const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              우리 가계부
-            </h1>
-            <p className="text-muted-foreground">
-              {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 재무현황
-            </p>
+          {/* Header */}
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                {selectedView === 'me' ? '내 가계부' : 
+                 selectedView === 'spouse' ? '아내 가계부' : '가족 가계부'}
+              </h1>
+              <p className="text-muted-foreground">
+                {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 재무현황
+              </p>
+            </div>
+            <TransactionForm onTransactionAdded={fetchMonthlyData} />
           </div>
-          <TransactionForm onTransactionAdded={fetchMonthlyData} />
-        </div>
 
         {/* SMS and Notification Auto Recognition */}
         {smsEnabled && (
