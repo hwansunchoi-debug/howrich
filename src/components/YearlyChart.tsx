@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, RefreshCw } from "lucide-react";
+import { BarChart3, RefreshCw, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface MonthlyData {
   month: string;
@@ -16,10 +17,14 @@ interface MonthlyData {
 
 export const YearlyChart = () => {
   const { user } = useAuth();
+  const { isMaster } = useUserRole();
   const [data, setData] = useState<MonthlyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [refreshing, setRefreshing] = useState(false);
+  const [userFilter, setUserFilter] = useState<string>('all');
+  const [users, setUsers] = useState<any[]>([]);
+  const [monthlyAverage, setMonthlyAverage] = useState<number>(0);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -29,9 +34,37 @@ export const YearlyChart = () => {
 
   useEffect(() => {
     if (user) {
+      fetchUsers();
       fetchYearlyData();
     }
-  }, [user, selectedYear]);
+  }, [user, selectedYear, userFilter]);
+
+  const fetchUsers = async () => {
+    if (!user || !isMaster) return;
+
+    try {
+      const { data: familyMembers } = await supabase
+        .from('family_members')
+        .select(`
+          member_id,
+          display_name,
+          profiles!family_members_member_id_fkey(display_name, email)
+        `)
+        .eq('owner_id', user.id);
+
+      const usersList = [
+        { id: user.id, name: '나' },
+        ...(familyMembers || []).map(member => ({
+          id: member.member_id,
+          name: member.display_name || 'Unknown'
+        }))
+      ];
+      
+      setUsers(usersList);
+    } catch (error) {
+      console.error('사용자 목록 조회 실패:', error);
+    }
+  };
 
   const fetchYearlyData = async () => {
     if (!user) return;
@@ -39,6 +72,8 @@ export const YearlyChart = () => {
     setLoading(true);
     
     const monthlyData: MonthlyData[] = [];
+    let totalExpenseSum = 0;
+    let monthsWithExpenses = 0;
     
     for (let month = 1; month <= 12; month++) {
       const startDate = `${selectedYear}-${month.toString().padStart(2, '0')}-01`;
@@ -46,26 +81,49 @@ export const YearlyChart = () => {
         ? `${selectedYear + 1}-01-01` 
         : `${selectedYear}-${(month + 1).toString().padStart(2, '0')}-01`;
       
+      // 사용자 필터 적용
+      const targetUserId = isMaster && userFilter !== 'all' ? userFilter : user.id;
+      
       // 월별 수입 조회
-      const { data: incomeData } = await supabase
+      let incomeQuery = supabase
         .from('transactions')
         .select('amount')
         .eq('type', 'income')
-        .eq('user_id', user.id)
         .gte('date', startDate)
         .lt('date', endDate);
+
+      if (isMaster && userFilter !== 'all') {
+        incomeQuery = incomeQuery.eq('user_id', userFilter);
+      } else if (!isMaster || userFilter === 'all') {
+        incomeQuery = incomeQuery.eq('user_id', user.id);
+      }
+
+      const { data: incomeData } = await incomeQuery;
       
       // 월별 지출 조회
-      const { data: expenseData } = await supabase
+      let expenseQuery = supabase
         .from('transactions')
         .select('amount')
         .eq('type', 'expense')
-        .eq('user_id', user.id)
         .gte('date', startDate)
         .lt('date', endDate);
+
+      if (isMaster && userFilter !== 'all') {
+        expenseQuery = expenseQuery.eq('user_id', userFilter);
+      } else if (!isMaster || userFilter === 'all') {
+        expenseQuery = expenseQuery.eq('user_id', user.id);
+      }
+
+      const { data: expenseData } = await expenseQuery;
       
       const totalIncome = incomeData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       const totalExpense = expenseData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      
+      // 2025년 월 평균 지출액 계산을 위해 누적
+      if (selectedYear === 2025 && totalExpense > 0) {
+        totalExpenseSum += totalExpense;
+        monthsWithExpenses++;
+      }
       
       monthlyData.push({
         month: `${month}월`,
@@ -73,6 +131,16 @@ export const YearlyChart = () => {
         expense: totalExpense,
         net: totalIncome - totalExpense
       });
+    }
+    
+    // 2025년 월 평균 지출액 계산
+    if (selectedYear === 2025) {
+      const currentMonth = new Date().getMonth() + 1;
+      const monthsToCalculate = currentMonth > 12 ? 12 : currentMonth;
+      const averageExpense = monthsWithExpenses > 0 ? totalExpenseSum / monthsToCalculate : 0;
+      setMonthlyAverage(averageExpense);
+    } else {
+      setMonthlyAverage(0);
     }
     
     setData(monthlyData);
@@ -105,22 +173,61 @@ export const YearlyChart = () => {
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
         </CardTitle>
-        <Select
-          value={selectedYear.toString()}
-          onValueChange={(value) => setSelectedYear(Number(value))}
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((year) => (
-              <SelectItem key={year.value} value={year.value.toString()}>
-                {year.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select
+            value={selectedYear.toString()}
+            onValueChange={(value) => setSelectedYear(Number(value))}
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((year) => (
+                <SelectItem key={year.value} value={year.value.toString()}>
+                  {year.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
+      
+      {/* 필터 및 월 평균 지출액 */}
+      <div className="px-6 pb-4 space-y-4">
+        {isMaster && (
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">사용자:</span>
+            <Select value={userFilter} onValueChange={setUserFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                {users.map(user => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        
+        {selectedYear === 2025 && monthlyAverage > 0 && (
+          <div className="bg-muted/50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-muted-foreground">2025년 월 평균 지출액</span>
+              <span className="text-lg font-bold text-destructive">
+                {monthlyAverage.toLocaleString()}원
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              ({formatCurrency(monthlyAverage)})
+            </div>
+          </div>
+        )}
+      </div>
       <CardContent>
         {loading ? (
           <div className="text-center py-8 text-muted-foreground">

@@ -145,6 +145,7 @@ export const AssetTrendChartEnhanced = ({ onDataRefresh }: AssetTrendChartEnhanc
         }
         
         const formattedDate = new Date(snapshot.snapshot_date).toLocaleDateString('ko-KR', {
+          year: '2-digit',
           month: 'short',
           day: 'numeric'
         });
@@ -170,6 +171,7 @@ export const AssetTrendChartEnhanced = ({ onDataRefresh }: AssetTrendChartEnhanc
             date: today,
             balance: totalBalance,
             formattedDate: new Date().toLocaleDateString('ko-KR', {
+              year: '2-digit',
               month: 'short',
               day: 'numeric'
             })
