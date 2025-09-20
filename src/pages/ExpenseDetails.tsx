@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingDown, Calendar, Filter } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ArrowLeft, TrendingDown, Calendar, Filter, Edit2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -14,25 +16,53 @@ interface Transaction {
   description: string;
   amount: number;
   category?: {
+    id: string;
     name: string;
     color: string;
   };
+  category_id?: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
 }
 
 export default function ExpenseDetails() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [totalExpense, setTotalExpense] = useState(0);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   useEffect(() => {
     if (user) {
       fetchExpenseTransactions();
+      fetchCategories();
     }
   }, [user, selectedMonth, selectedYear]);
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('type', 'expense')
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('카테고리 조회 실패:', error);
+    }
+  };
 
   const fetchExpenseTransactions = async () => {
     try {
@@ -43,7 +73,7 @@ export default function ExpenseDetails() {
         .from('transactions')
         .select(`
           *,
-          categories(name, color)
+          categories(id, name, color)
         `)
         .eq('type', 'expense')
         .eq('user_id', user?.id)
@@ -80,6 +110,36 @@ export default function ExpenseDetails() {
     value: new Date().getFullYear() - i,
     label: `${new Date().getFullYear() - i}년`
   }));
+
+  const handleEditCategory = async () => {
+    if (!editingTransaction || !selectedCategoryId) return;
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: selectedCategoryId })
+        .eq('id', editingTransaction.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "카테고리 수정 완료",
+        description: "거래 카테고리가 성공적으로 변경되었습니다.",
+      });
+
+      // 목록 새로고침
+      fetchExpenseTransactions();
+      setEditingTransaction(null);
+      setSelectedCategoryId('');
+    } catch (error) {
+      console.error('카테고리 수정 실패:', error);
+      toast({
+        title: "오류",
+        description: "카테고리 수정에 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -193,18 +253,71 @@ export default function ExpenseDetails() {
                       </div>
                       <div>
                         <p className="font-medium">{transaction.description}</p>
-                        {transaction.category && (
-                          <Badge 
-                            variant="outline" 
-                            className="mt-1"
-                            style={{ 
-                              borderColor: transaction.category.color,
-                              color: transaction.category.color 
-                            }}
-                          >
-                            {transaction.category.name}
-                          </Badge>
-                        )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {transaction.category && (
+                            <Badge 
+                              variant="outline" 
+                              className="mt-1"
+                              style={{ 
+                                borderColor: transaction.category.color,
+                                color: transaction.category.color 
+                              }}
+                            >
+                              {transaction.category.name}
+                            </Badge>
+                          )}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => {
+                                  setEditingTransaction(transaction);
+                                  setSelectedCategoryId(transaction.category_id || '');
+                                }}
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md">
+                              <DialogHeader>
+                                <DialogTitle>카테고리 수정</DialogTitle>
+                              </DialogHeader>
+                              <div className="space-y-4">
+                                <div>
+                                  <p className="text-sm text-muted-foreground mb-2">거래내역</p>
+                                  <p className="font-medium">{transaction.description}</p>
+                                </div>
+                                <div>
+                                  <p className="text-sm text-muted-foreground mb-2">카테고리 선택</p>
+                                  <Select
+                                    value={selectedCategoryId}
+                                    onValueChange={setSelectedCategoryId}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="카테고리 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {categories.map((category) => (
+                                        <SelectItem key={category.id} value={category.id}>
+                                          {category.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline">취소</Button>
+                                  </DialogTrigger>
+                                  <Button onClick={handleEditCategory}>
+                                    변경
+                                  </Button>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">

@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
-import { BudgetManager } from "./BudgetManager";
+import { YearlyChart } from "./YearlyChart";
 import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +33,8 @@ export const Dashboard = () => {
   const [isProcessingHistory, setIsProcessingHistory] = useState(false);
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const [selectedView, setSelectedView] = useState<'me' | 'spouse' | 'family'>('me');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export const Dashboard = () => {
       fetchMonthlyData();
       checkMobilePlatform();
     }
-  }, [user, selectedView, isMaster, roleLoading]);
+  }, [user, selectedView, isMaster, roleLoading, selectedYear, selectedMonth]);
 
   const checkMobilePlatform = () => {
     if (Capacitor.isNativePlatform()) {
@@ -138,8 +141,8 @@ export const Dashboard = () => {
   const fetchMonthlyData = async () => {
     if (!user) return;
     
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = selectedYear;
+    const currentMonth = selectedMonth;
     
     // 권한에 따라 사용자 ID 결정
     let userIds: string[] = [user.id]; // 기본값: 본인만
@@ -268,14 +271,52 @@ export const Dashboard = () => {
                  selectedView === 'me' ? '내 가계부' : 
                  selectedView === 'spouse' ? '배우자 가계부' : '가족 가계부'}
               </h1>
-              <p className="text-muted-foreground">
-                {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 재무현황
-                {!isMaster && (
-                  <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
-                    본인 데이터만 표시
-                  </span>
-                )}
-              </p>
+              <div className="flex items-center gap-4 flex-wrap">
+                <p className="text-muted-foreground">
+                  {selectedYear}년 {selectedMonth}월 재무현황
+                  {!isMaster && (
+                    <span className="ml-2 text-xs bg-muted px-2 py-1 rounded">
+                      본인 데이터만 표시
+                    </span>
+                  )}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <Select
+                    value={selectedYear.toString()}
+                    onValueChange={(value) => setSelectedYear(Number(value))}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}년
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => setSelectedMonth(Number(value))}
+                  >
+                    <SelectTrigger className="w-16">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          {i + 1}월
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
             <TransactionForm onTransactionAdded={fetchMonthlyData} />
           </div>
@@ -414,7 +455,7 @@ export const Dashboard = () => {
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <ExpenseChart onDataRefresh={fetchMonthlyData} />
-            <BudgetManager />
+            <YearlyChart />
           </div>
           <div>
             <RecentTransactions onDataRefresh={fetchMonthlyData} />
