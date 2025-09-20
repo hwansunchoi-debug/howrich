@@ -127,7 +127,7 @@ export const Dashboard = () => {
         .from('user_settings')
         .select('setup_completed')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('설정 상태 확인 실패:', error);

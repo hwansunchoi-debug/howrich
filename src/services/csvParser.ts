@@ -8,6 +8,7 @@ interface TransactionRow {
   amount: number;
   type: 'income' | 'expense';
   category?: string;
+  institution?: string;
 }
 
 interface ParseResult {
@@ -125,14 +126,59 @@ export class CSVParser {
       throw new Error(`잘못된 금액: ${amount}`);
     }
 
-    console.log(`최종 거래:`, { date: normalizedDate, description: description.trim(), amount, type });
+    // 금융기관 추출 (CSV 파일명이나 설명에서 추출 시도)
+    let institution = '';
+    if (template.columns.institution !== undefined) {
+      institution = row[template.columns.institution] || '';
+    } else {
+      // 설명에서 금융기관 추출 시도
+      institution = this.extractInstitution(description);
+    }
+
+    console.log(`최종 거래:`, { date: normalizedDate, description: description.trim(), amount, type, institution });
 
     return {
       date: normalizedDate,
       description: description.trim(),
       amount,
-      type
+      type,
+      institution: institution || undefined
     };
+  }
+
+  /**
+   * 설명에서 금융기관명 추출
+   */
+  private static extractInstitution(description: string): string {
+    const institutionPatterns = [
+      /삼성카드/,
+      /농협카드/,
+      /신한카드/,
+      /현대카드/,
+      /하나카드/,
+      /롯데카드/,
+      /KB카드/,
+      /우리카드/,
+      /BC카드/,
+      /NH농협은행/,
+      /신한은행/,
+      /우리은행/,
+      /하나은행/,
+      /KB국민은행/,
+      /IBK기업은행/,
+      /KEB하나은행/,
+      /카카오뱅크/,
+      /토스뱅크/,
+      /케이뱅크/
+    ];
+
+    for (const pattern of institutionPatterns) {
+      if (pattern.test(description)) {
+        return pattern.source.replace(/[\/\\]/g, '');
+      }
+    }
+
+    return '';
   }
 
   /**
@@ -394,7 +440,7 @@ export class CSVParser {
           continue;
         }
 
-        // 거래내역 저장 (user_id 및 file_upload_id 추가)
+        // 거래내역 저장 (user_id 및 file_upload_id, institution 추가)
         const { error } = await supabase
           .from('transactions')
           .insert({
@@ -404,6 +450,7 @@ export class CSVParser {
             amount: transaction.amount,
             type: transaction.type,
             category_id: categoryId,
+            institution: transaction.institution,
             source: fileUploadId ? 'csv_upload' : 'csv_import',
             file_upload_id: fileUploadId
           });

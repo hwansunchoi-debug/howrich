@@ -88,11 +88,17 @@ export default function IncomeDetails() {
 
   const fetchInstitutions = async () => {
     try {
+      // 현재 선택된 년월의 수입 내역에서 금융기관 목록 추출
+      const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+      
       const { data, error } = await supabase
         .from('transactions')
         .select('institution')
         .eq('type', 'income')
         .eq('user_id', user?.id)
+        .gte('date', startDate)
+        .lte('date', endDate)
         .not('institution', 'is', null);
 
       if (error) throw error;
@@ -344,7 +350,9 @@ export default function IncomeDetails() {
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{transaction.date}</span>
                           {transaction.institution && (
-                            <span>{transaction.institution}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {transaction.institution}
+                            </Badge>
                           )}
                         </div>
                       </div>

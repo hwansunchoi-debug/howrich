@@ -220,8 +220,14 @@ export const TransactionUpload: React.FC<TransactionUploadProps> = ({ onComplete
           description: `${saveResult.success}개의 거래내역이 성공적으로 업로드되었습니다.`
         });
         
-        // 성공적으로 업로드되면 완료 처리
-        setTimeout(onComplete, 1000);
+        // 성공적으로 업로드되면 완료 처리 및 즉시 반영
+        setTimeout(() => {
+          onComplete();
+          // 부모 컴포넌트에서 목록을 새로고침하도록 호출
+          if (typeof onComplete === 'function') {
+            onComplete();
+          }
+        }, 1000);
       }
     } catch (error) {
       toast({

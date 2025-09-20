@@ -158,7 +158,7 @@ export const InitialSetup: React.FC<InitialSetupProps> = ({ onComplete }) => {
         .from('user_settings')
         .select('setup_completed, initial_data_cutoff_date')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
       setSetupCompleted(data?.setup_completed || false);

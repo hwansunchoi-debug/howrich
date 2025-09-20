@@ -10,6 +10,7 @@ export interface BankTemplate {
     amount?: number;
     balance?: number;
     merchant?: number;
+    institution?: number;
   };
   dateFormat: string;
   encoding?: string;
@@ -227,6 +228,7 @@ export const bankTemplates: BankTemplate[] = [
     name: '권장 엑셀 양식 (금융기관, 날짜, 내용, 수입금액, 지출금액, 구분)',
     category: 'other',
     columns: {
+      institution: 0, // 금융기관
       date: 1,        // 날짜
       description: 2, // 내용(가맹점명)
       deposit: 3,     // 수입금액
