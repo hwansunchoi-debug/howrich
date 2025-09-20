@@ -719,9 +719,14 @@ export default function CategoryManagement() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        총 {group.transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}원
-                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-sm text-muted-foreground">
+                          총 {group.transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()}원
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          최근: {new Date(group.transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].date).toLocaleDateString('ko-KR')}
+                        </p>
+                      </div>
                     </div>
                     
                     <Button
