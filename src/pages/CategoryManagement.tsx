@@ -27,6 +27,7 @@ interface Transaction {
   };
   category_id?: string;
   institution?: string;
+  user_id?: string;
 }
 
 interface Category {
@@ -115,7 +116,13 @@ export default function CategoryManagement() {
 
       if (error) throw error;
 
-      setTransactions((data || []) as Transaction[]);
+      const transactionsWithUserAndInstitution = (data || []).map(transaction => ({
+        ...transaction,
+        user_id: transaction.user_id,
+        institution: transaction.institution
+      }));
+
+      setTransactions(transactionsWithUserAndInstitution as Transaction[]);
       
       // 미분류 거래 수 계산
       const uncategorized = (data || []).filter(t => !t.category_id).length;
@@ -568,58 +575,6 @@ export default function CategoryManagement() {
           </Card>
         </div>
 
-        {/* 필터 및 검색 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              필터 및 검색
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium mb-2 block">카테고리 필터</label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체 ({transactions.length}건)</SelectItem>
-                    <SelectItem value="uncategorized">
-                      미분류 ({uncategorizedCount}건)
-                    </SelectItem>
-                    {categories.map(category => {
-                      const count = transactions.filter(t => t.category?.id === category.id).length;
-                      return (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name} ({count}건)
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <label className="text-sm font-medium mb-2 block">가맹점 검색</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="가맹점명 검색..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-sm text-muted-foreground">
-              현재 필터: {getFilteredCount()}건의 거래, {merchantGroups.length}개의 가맹점
-            </div>
-          </CardContent>
-        </Card>
 
         {/* 탭 네비게이션 */}
         <Tabs defaultValue="transactions" className="w-full">
@@ -630,6 +585,59 @@ export default function CategoryManagement() {
           </TabsList>
 
           <TabsContent value="transactions" className="space-y-6">
+            {/* 필터 및 검색 */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  필터 및 검색
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">카테고리 필터</label>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체 ({transactions.length}건)</SelectItem>
+                        <SelectItem value="uncategorized">
+                          미분류 ({uncategorizedCount}건)
+                        </SelectItem>
+                        {categories.map(category => {
+                          const count = transactions.filter(t => t.category?.id === category.id).length;
+                          return (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name} ({count}건)
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">가맹점 검색</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="가맹점명 검색..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  현재 필터: {getFilteredCount()}건의 거래, {merchantGroups.length}개의 가맹점
+                </div>
+              </CardContent>
+            </Card>
+
             {/* 가맹점별 거래 리스트 */}
             <Card>
               <CardHeader>

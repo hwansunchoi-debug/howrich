@@ -36,6 +36,7 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchType, setSearchType] = useState<'merchant' | 'category'>('merchant');
   const [editingMapping, setEditingMapping] = useState<MerchantMapping | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [newCategoryId, setNewCategoryId] = useState('');
@@ -163,9 +164,13 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
     }
   };
 
-  const filteredMappings = mappings.filter(mapping =>
-    mapping.merchant_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredMappings = mappings.filter(mapping => {
+    if (searchType === 'merchant') {
+      return mapping.merchant_name.toLowerCase().includes(searchTerm.toLowerCase());
+    } else {
+      return mapping.category?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    }
+  });
 
   return (
     <Card>
@@ -177,15 +182,26 @@ export default function MerchantMappingCard({ user }: MerchantMappingCardProps) 
       </CardHeader>
       <CardContent>
         {/* 검색 */}
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="가맹점명으로 검색..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        <div className="mb-4 space-y-3">
+          <div className="flex gap-2">
+            <Select value={searchType} onValueChange={(value) => setSearchType(value as 'merchant' | 'category')}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="merchant">가맹점명</SelectItem>
+                <SelectItem value="category">카테고리명</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={searchType === 'merchant' ? '가맹점명으로 검색...' : '카테고리명으로 검색...'}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
         </div>
 

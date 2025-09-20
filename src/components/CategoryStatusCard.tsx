@@ -95,10 +95,10 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
   };
 
   const calculateCategoryStats = () => {
-    // 필터 적용
+    // 필터 적용 - 카테고리가 설정된 거래만
     let filteredTransactions = transactions.filter(t => t.category_id);
     
-    // 사용자 필터
+    // 사용자 필터 (마스터 사용자인 경우)
     if (selectedUserId !== 'all') {
       filteredTransactions = filteredTransactions.filter(t => t.user_id === selectedUserId);
     }
@@ -118,7 +118,7 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
     }
     
     const stats: CategoryStats[] = categories.map(category => {
-      const categoryTransactions = filteredTransactions.filter(t => t.category?.id === category.id);
+      const categoryTransactions = filteredTransactions.filter(t => t.category_id === category.id);
       
       // 수입/지출 분리 계산
       const incomeTransactions = categoryTransactions.filter(t => t.type === 'income');
@@ -128,11 +128,11 @@ export default function CategoryStatusCard({ categories, transactions, user, onC
       const expenseCount = expenseTransactions.length;
       const totalCount = categoryTransactions.length;
       
-      const incomeAmount = incomeTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const expenseAmount = expenseTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const incomeAmount = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+      const expenseAmount = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
       const totalAmount = incomeAmount + expenseAmount;
       
-      const totalFilteredAmount = filteredTransactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+      const totalFilteredAmount = filteredTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
       const percentage = totalFilteredAmount > 0 ? (totalAmount / totalFilteredAmount) * 100 : 0;
 
       return {
