@@ -8,6 +8,7 @@ import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
 import { YearlyChart } from "./YearlyChart";
+import { AssetTrendChart } from "./AssetTrendChart";
 import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
 import { supabase } from "@/integrations/supabase/client";
@@ -204,10 +205,19 @@ export const Dashboard = () => {
     const totalIncome = incomeData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
     const totalExpense = expenseData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
 
+    // 최신 잔액 데이터 조회
+    const { data: latestBalance } = await supabase
+      .from('balance_snapshots')
+      .select('total_balance, snapshot_date')
+      .in('user_id', userIds)
+      .order('snapshot_date', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     setMonthlyData({
       income: totalIncome,
       expense: totalExpense,
-      balance: totalIncome - totalExpense,
+      balance: latestBalance?.total_balance || 0,
     });
     
     setLoading(false);
@@ -446,7 +456,7 @@ export const Dashboard = () => {
               <div className="text-2xl font-bold">
                 {loading ? '로딩 중...' : formatCurrency(monthlyData.balance)}
               </div>
-              <p className="text-xs text-white/80">이번 달 순잔액</p>
+              <p className="text-xs text-white/80">최신 계좌 잔액</p>
             </CardContent>
           </Card>
         </div>

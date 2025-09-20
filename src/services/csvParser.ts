@@ -378,6 +378,22 @@ export class CSVParser {
           categoryId = await this.findOrCreateCategory(categoryName, transaction.type, user.id);
         }
 
+        // 중복 검사를 위한 기본 정보로 먼저 확인
+        const { data: existingTransaction } = await supabase
+          .from('transactions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('date', transaction.date)
+          .eq('description', transaction.description)
+          .eq('amount', transaction.amount)
+          .eq('type', transaction.type)
+          .maybeSingle();
+
+        if (existingTransaction) {
+          console.log('중복 거래 발견, 건너뛰기:', transaction.description);
+          continue;
+        }
+
         // 거래내역 저장 (user_id 추가)
         const { error } = await supabase
           .from('transactions')
@@ -387,7 +403,8 @@ export class CSVParser {
             description: transaction.description,
             amount: transaction.amount,
             type: transaction.type,
-            category_id: categoryId
+            category_id: categoryId,
+            source: 'csv_import'
           });
 
         if (error) {

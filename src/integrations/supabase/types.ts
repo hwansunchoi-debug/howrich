@@ -50,6 +50,36 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_snapshots: {
+        Row: {
+          account_details: Json | null
+          created_at: string
+          id: string
+          snapshot_date: string
+          total_balance: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_details?: Json | null
+          created_at?: string
+          id?: string
+          snapshot_date: string
+          total_balance?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_details?: Json | null
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+          total_balance?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount: number
@@ -207,6 +237,8 @@ export type Database = {
           date: string
           description: string | null
           id: string
+          institution: string | null
+          source: string | null
           type: string
           updated_at: string
           user_id: string | null
@@ -218,6 +250,8 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          institution?: string | null
+          source?: string | null
           type: string
           updated_at?: string
           user_id?: string | null
@@ -229,6 +263,8 @@ export type Database = {
           date?: string
           description?: string | null
           id?: string
+          institution?: string | null
+          source?: string | null
           type?: string
           updated_at?: string
           user_id?: string | null

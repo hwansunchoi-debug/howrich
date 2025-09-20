@@ -3,10 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { ArrowLeft, TrendingUp, Calendar, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
 
 interface Transaction {
   id: string;
@@ -22,34 +28,72 @@ interface Transaction {
 export default function IncomeDetails() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [institutions, setInstitutions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>();
+  const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [totalIncome, setTotalIncome] = useState(0);
 
   useEffect(() => {
     if (user) {
       fetchIncomeTransactions();
+      fetchInstitutions();
     }
-  }, [user, selectedMonth, selectedYear]);
+  }, [user, selectedMonth, selectedYear, selectedDateRange, selectedInstitution]);
+
+  const fetchInstitutions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('institution')
+        .eq('type', 'income')
+        .eq('user_id', user?.id)
+        .not('institution', 'is', null);
+
+      if (error) throw error;
+
+      const uniqueInstitutions = [...new Set(data?.map(t => t.institution).filter(Boolean))];
+      setInstitutions(uniqueInstitutions);
+    } catch (error) {
+      console.error('금융기관 조회 실패:', error);
+    }
+  };
 
   const fetchIncomeTransactions = async () => {
     try {
-      const startDate = new Date(selectedYear, selectedMonth - 1, 1);
-      const endDate = new Date(selectedYear, selectedMonth, 0);
-
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
         .select(`
           *,
-          categories(name, color)
+          categories(id, name, color)
         `)
         .eq('type', 'income')
-        .eq('user_id', user?.id)
-        .gte('date', startDate.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0])
-        .order('date', { ascending: false });
+        .eq('user_id', user?.id);
+
+      // 날짜 범위 필터링
+      if (selectedDateRange?.from && selectedDateRange?.to) {
+        query = query
+          .gte('date', format(selectedDateRange.from, 'yyyy-MM-dd'))
+          .lte('date', format(selectedDateRange.to, 'yyyy-MM-dd'));
+      } else {
+        // 기본 월별 필터링
+        const startDate = new Date(selectedYear, selectedMonth - 1, 1);
+        const endDate = new Date(selectedYear, selectedMonth, 0);
+        query = query
+          .gte('date', startDate.toISOString().split('T')[0])
+          .lte('date', endDate.toISOString().split('T')[0]);
+      }
+
+      // 금융기관 필터링
+      if (selectedInstitution !== 'all') {
+        query = query.eq('institution', selectedInstitution);
+      }
+
+      const { data, error } = await query.order('date', { ascending: false });
 
       if (error) throw error;
 
@@ -87,7 +131,7 @@ export default function IncomeDetails() {
         {/* 헤더 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/')}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-2">
@@ -100,43 +144,99 @@ export default function IncomeDetails() {
         {/* 필터 */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
-                <span className="font-medium">기간 선택</span>
+                <span className="font-medium">필터 옵션</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={selectedYear.toString()}
-                  onValueChange={(value) => setSelectedYear(Number(value))}
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {years.map((year) => (
-                      <SelectItem key={year.value} value={year.value.toString()}>
-                        {year.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                
-                <Select
-                  value={selectedMonth.toString()}
-                  onValueChange={(value) => setSelectedMonth(Number(value))}
-                >
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((month) => (
-                      <SelectItem key={month.value} value={month.value.toString()}>
-                        {month.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* 기간 선택 */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">기간 선택</label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Select
+                      value={selectedYear.toString()}
+                      onValueChange={(value) => setSelectedYear(Number(value))}
+                    >
+                      <SelectTrigger className="w-24">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {years.map((year) => (
+                          <SelectItem key={year.value} value={year.value.toString()}>
+                            {year.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select
+                      value={selectedMonth.toString()}
+                      onValueChange={(value) => setSelectedMonth(Number(value))}
+                    >
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {months.map((month) => (
+                          <SelectItem key={month.value} value={month.value.toString()}>
+                            {month.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          상세 날짜
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="range"
+                          selected={selectedDateRange}
+                          onSelect={setSelectedDateRange}
+                          numberOfMonths={2}
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                        <div className="p-3 border-t">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setSelectedDateRange(undefined)}
+                            className="w-full"
+                          >
+                            날짜 범위 초기화
+                          </Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                {/* 금융기관 선택 */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">금융기관</label>
+                  <Select
+                    value={selectedInstitution}
+                    onValueChange={setSelectedInstitution}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="금융기관 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {institutions.map((institution) => (
+                        <SelectItem key={institution} value={institution}>
+                          {institution}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -147,7 +247,9 @@ export default function IncomeDetails() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-sm text-muted-foreground mb-2">
-                {selectedYear}년 {selectedMonth}월 총 수입
+                {selectedDateRange?.from && selectedDateRange?.to 
+                  ? `${format(selectedDateRange.from, 'MM/dd')} - ${format(selectedDateRange.to, 'MM/dd')} 총 수입`
+                  : `${selectedYear}년 ${selectedMonth}월 총 수입`}
               </p>
               <p className="text-3xl font-bold text-green-600">
                 +{totalIncome.toLocaleString()}원
