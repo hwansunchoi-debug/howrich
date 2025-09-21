@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Device } from '@capacitor/device';
 import { PushNotifications } from '@capacitor/push-notifications';
-import { AndroidPermissions } from '@awesome-cordova-plugins/android-permissions';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
@@ -67,40 +66,44 @@ export const PermissionManager: React.FC = () => {
     console.log('SMS 권한 요청 시작...');
     
     try {
-      // AndroidPermissions 플러그인 사용
-      console.log('AndroidPermissions 플러그인으로 SMS 권한 확인...');
-      
-      // READ_SMS 권한 확인
-      const hasPermission = await AndroidPermissions.checkPermission(
-        AndroidPermissions.PERMISSION.READ_SMS
-      );
-      
-      console.log('SMS 권한 상태:', hasPermission);
-      
-      if (hasPermission.hasPermission) {
-        setPermissions(prev => ({ ...prev, sms: 'granted' }));
-        toast.success('문자 읽기 권한이 이미 허용되어 있습니다.');
+      // 네이티브 안드로이드 권한 요청 시도
+      if ((window as any).cordova && (window as any).cordova.plugins && (window as any).cordova.plugins.permissions) {
+        console.log('Cordova permissions 플러그인 사용');
+        const permissions = (window as any).cordova.plugins.permissions;
+        
+        await new Promise<void>((resolve, reject) => {
+          permissions.requestPermission(
+            'android.permission.READ_SMS',
+            (status: any) => {
+              console.log('SMS 권한 요청 결과:', status);
+              if (status.hasPermission) {
+                setPermissions(prev => ({ ...prev, sms: 'granted' }));
+                toast.success('문자 읽기 권한이 허용되었습니다.');
+                resolve();
+              } else {
+                setPermissions(prev => ({ ...prev, sms: 'denied' }));
+                toast.info('Android 14+ 에서는 설정 > 앱 정보 > 메뉴 > "제한된 설정 허용" 후 권한 > SMS 에서 수동으로 허용해주세요.');
+                reject(new Error('권한 거부됨'));
+              }
+            },
+            (error: any) => {
+              console.log('SMS 권한 요청 에러:', error);
+              setPermissions(prev => ({ ...prev, sms: 'denied' }));
+              toast.info('설정에서 수동으로 SMS 권한을 허용해주세요.\n\n1. 설정 > 앱 > 이 앱 선택\n2. 메뉴(⋮) > "제한된 설정 허용"\n3. 권한 > SMS > 허용');
+              reject(error);
+            }
+          );
+        });
       } else {
-        console.log('SMS 권한 요청 중...');
-        // 권한 요청
-        const requestResult = await AndroidPermissions.requestPermission(
-          AndroidPermissions.PERMISSION.READ_SMS
-        );
-        
-        console.log('SMS 권한 요청 결과:', requestResult);
-        
-        if (requestResult.hasPermission) {
-          setPermissions(prev => ({ ...prev, sms: 'granted' }));
-          toast.success('문자 읽기 권한이 허용되었습니다.');
-        } else {
-          setPermissions(prev => ({ ...prev, sms: 'denied' }));
-          toast.error('문자 읽기 권한이 거부되었습니다. Android 14+ 에서는 설정에서 수동으로 허용해야 합니다.');
-        }
+        // Cordova 권한 플러그인이 없는 경우
+        console.log('Cordova permissions 플러그인을 찾을 수 없음');
+        setPermissions(prev => ({ ...prev, sms: 'denied' }));
+        toast.info('SMS 권한을 설정에서 수동으로 허용해주세요.\n\n1. 설정 > 앱 > 이 앱 선택\n2. 메뉴(⋮) > "제한된 설정 허용"\n3. 권한 > SMS > 허용');
       }
     } catch (error) {
       console.error('SMS 권한 요청 실패:', error);
       setPermissions(prev => ({ ...prev, sms: 'denied' }));
-      toast.error('SMS 권한을 요청할 수 없습니다. 설정에서 수동으로 허용해주세요.');
+      toast.info('설정에서 수동으로 SMS 권한을 허용해주세요.\n\n1. 설정 > 앱 > 이 앱 선택\n2. 메뉴(⋮) > "제한된 설정 허용"\n3. 권한 > SMS > 허용');
     } finally {
       setIsLoading(false);
     }
@@ -131,17 +134,9 @@ export const PermissionManager: React.FC = () => {
     }
   };
 
-  const openAppSettings = async () => {
+  const openAppSettings = () => {
     if (Capacitor.isNativePlatform()) {
-      try {
-        // Android 설정 열기 시도
-        await AndroidPermissions.requestPermissions([
-          AndroidPermissions.PERMISSION.READ_SMS
-        ]);
-        toast.info('설정에서 권한을 허용한 후 다시 시도해주세요.');
-      } catch (error) {
-        toast.info('설정 > 앱 > 권한 > SMS에서 수동으로 권한을 허용해주세요.\n\nAndroid 14+ 에서는 메뉴 > "제한된 설정 허용"을 먼저 활성화해야 합니다.');
-      }
+      toast.info('설정 > 앱 > 권한 > SMS에서 수동으로 권한을 허용해주세요.\n\nAndroid 14+ 에서는 메뉴 > "제한된 설정 허용"을 먼저 활성화해야 합니다.');
     }
   };
 
