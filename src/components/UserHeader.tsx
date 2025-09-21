@@ -159,57 +159,8 @@ export const UserHeader: React.FC<UserHeaderProps> = ({
             </div>
           </div>
 
-          {/* 중앙: 뷰 선택 (마스터만) */}
+          {/* 중앙: 사용자 안내 */}
           <div className="flex items-center gap-4">
-            {isMaster && (
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <Select value={selectedView} onValueChange={onViewChange}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="me">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        내 가계부
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="spouse">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        배우자 가계부
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="family">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        가족 가계부 
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* 가족 관리 버튼 (마스터만) */}
-            {isMaster && (
-              <Dialog open={showFamilyDialog} onOpenChange={setShowFamilyDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-1" />
-                    가족 관리
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>가족 구성원 관리</DialogTitle>
-                  </DialogHeader>
-                  <FamilyManagement />
-                </DialogContent>
-              </Dialog>
-            )}
-
             {/* 일반 사용자 안내 */}
             {!isMaster && (
               <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-lg">

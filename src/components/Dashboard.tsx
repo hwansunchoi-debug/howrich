@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar, Tag, Settings, Users } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown, Wallet, CreditCard, Smartphone, Bell, Calendar, Tag, Settings, Users, User } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ExpenseChart } from "./ExpenseChart";
 import { RecentTransactions } from "./RecentTransactions";
 import { TransactionForm } from "./TransactionForm";
@@ -14,6 +15,7 @@ import { InitialSetup } from "./InitialSetup";
 import { UserHeader } from "./UserHeader";
 import { CategoryManagementCard } from "./CategoryManagementCard";
 import { FamilyAssetChart } from "./FamilyAssetChart";
+import { FamilyManagement } from "./FamilyManagement";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
@@ -318,9 +320,45 @@ export const Dashboard = () => {
                  selectedView === 'spouse' ? '배우자 가계부' : '가족 가계부'}
               </h1>
               <div className="flex items-center gap-4 flex-wrap">
-                 <p className="text-muted-foreground">
-                   {selectedYear}년 {selectedMonth === 'all' ? '전체' : `${selectedMonth}월`} 재무현황
-                 </p>
+                <p className="text-muted-foreground">
+                  {selectedYear}년 {selectedMonth === 'all' ? '전체' : `${selectedMonth}월`} 재무현황
+                </p>
+                
+                {/* 가계부 필터 및 가족 관리 */}
+                <div className="flex items-center gap-2">
+                  {isMaster && (
+                    <>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <Select value={selectedView} onValueChange={handleViewChange}>
+                        <SelectTrigger className="w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="me">
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4" />
+                              내 가계부
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="spouse">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              배우자 가계부
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="family">
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              가족 가계부 
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                </div>
+                
+                {/* 연/월 필터 */}
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <Select
@@ -341,26 +379,47 @@ export const Dashboard = () => {
                       })}
                     </SelectContent>
                   </Select>
-                   <Select
-                     value={selectedMonth.toString()}
-                     onValueChange={(value) => setSelectedMonth(value === 'all' ? 'all' : Number(value))}
-                   >
-                     <SelectTrigger className="w-20">
-                       <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="all">전체</SelectItem>
-                       {Array.from({ length: 12 }, (_, i) => (
-                         <SelectItem key={i + 1} value={(i + 1).toString()}>
-                           {i + 1}월
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                   </Select>
+                  <Select
+                    value={selectedMonth.toString()}
+                    onValueChange={(value) => setSelectedMonth(value === 'all' ? 'all' : Number(value))}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          {i + 1}월
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
-            <TransactionForm onTransactionAdded={fetchMonthlyData} />
+            
+            {/* 오른쪽: 가족 관리 + 거래등록 */}
+            <div className="flex items-center gap-2">
+              {/* 가족 관리 버튼 (마스터만) */}
+              {isMaster && (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Settings className="h-4 w-4 mr-1" />
+                      가족 관리
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>가족 구성원 관리</DialogTitle>
+                    </DialogHeader>
+                    <FamilyManagement />
+                  </DialogContent>
+                </Dialog>
+              )}
+              <TransactionForm onTransactionAdded={fetchMonthlyData} />
+            </div>
           </div>
 
         {/* SMS and Notification Auto Recognition */}
