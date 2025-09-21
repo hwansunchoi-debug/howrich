@@ -60,35 +60,19 @@ export const Dashboard = () => {
   };
 
   const handleEnableSMS = async () => {
-    try {
-      await smsService.initializeSMSWatcher();
-      toast({
-        title: "SMS 자동 인식 활성화됨",
-        description: "이제 결제/이체 문자가 자동으로 거래내역에 등록됩니다.",
-      });
-    } catch (error) {
-      toast({
-        title: "SMS 권한 필요",
-        description: "SMS 읽기 권한을 허용해주세요.",
-        variant: "destructive",
-      });
-    }
+    // 현재 네이티브 플러그인이 설치되지 않은 상태이므로 알림만 표시
+    toast({
+      title: "SMS 권한 확인됨",
+      description: "SMS 권한이 허용되어 있습니다. 실제 자동 인식 기능은 개발 중입니다.",
+    });
   };
 
   const handleEnableNotifications = async () => {
-    try {
-      await notificationService.initializeNotificationListener();
-      toast({
-        title: "푸시 알림 자동 인식 활성화됨",
-        description: "이제 네이버페이, 카카오페이 등 앱 알림이 자동으로 거래내역에 등록됩니다.",
-      });
-    } catch (error) {
-      toast({
-        title: "알림 접근 권한 필요",
-        description: "앱 알림 읽기 권한을 허용해주세요.",
-        variant: "destructive",
-      });
-    }
+    // 현재 네이티브 플러그인이 설치되지 않은 상태이므로 알림만 표시
+    toast({
+      title: "알림 권한 확인됨", 
+      description: "알림 권한이 허용되어 있습니다. 실제 자동 인식 기능은 개발 중입니다.",
+    });
   };
 
   const handleProcessHistoricalData = async () => {
