@@ -57,11 +57,15 @@ export const PermissionManager: React.FC = () => {
       return;
     }
 
+    if (Capacitor.getPlatform() !== 'android') {
+      toast.error('문자 권한은 Android에서만 지원됩니다.');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // SMS 권한은 플러그인을 통해 요청
       if (window.SMS) {
-        // SMS 플러그인은 자동으로 권한을 요청하므로 listSMS 호출로 테스트
+        // SMS 플러그인을 통해 권한 요청 (listSMS 호출시 자동으로 권한 요청됨)
         await new Promise<void>((resolve, reject) => {
           window.SMS.listSMS(
             { box: 'inbox', maxCount: 1 },
@@ -71,6 +75,7 @@ export const PermissionManager: React.FC = () => {
               resolve();
             },
             (error: any) => {
+              console.log('SMS 권한 요청 결과:', error);
               setPermissions(prev => ({ ...prev, sms: 'denied' }));
               toast.error('문자 읽기 권한이 거부되었습니다. 설정에서 수동으로 허용해주세요.');
               reject(error);
@@ -78,7 +83,8 @@ export const PermissionManager: React.FC = () => {
           );
         });
       } else {
-        toast.error('SMS 플러그인을 찾을 수 없습니다.');
+        console.error('SMS 플러그인을 찾을 수 없습니다.');
+        toast.error('SMS 플러그인이 설치되지 않았습니다. 앱을 다시 빌드해주세요.');
       }
     } catch (error) {
       console.error('SMS 권한 요청 실패:', error);
