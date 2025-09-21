@@ -16,6 +16,7 @@ import { UserHeader } from "./UserHeader";
 import { CategoryManagementCard } from "./CategoryManagementCard";
 import { FamilyAssetChart } from "./FamilyAssetChart";
 import { FamilyManagement } from "./FamilyManagement";
+import { PermissionManager } from "./PermissionManager";
 import { supabase } from "@/integrations/supabase/client";
 import { smsService } from "@/services/smsService";
 import { notificationService } from "@/services/notificationService";
@@ -461,10 +462,27 @@ export const Dashboard = () => {
                     variant="secondary" 
                     size="sm" 
                     onClick={handleEnableNotifications}
-                    className="w-full"
+                    className="w-full mb-2"
                   >
                     푸시 알림 인식 활성화
                   </Button>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full text-white border-white/30 hover:bg-white/20"
+                      >
+                        권한 설정
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>앱 권한 설정</DialogTitle>
+                      </DialogHeader>
+                      <PermissionManager />
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
               </Card>
             </div>

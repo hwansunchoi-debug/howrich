@@ -8,6 +8,9 @@ const config: CapacitorConfig = {
   plugins: {
     SmsReader: {
       startListeningAutomatically: true
+    },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
     }
   }
 };
