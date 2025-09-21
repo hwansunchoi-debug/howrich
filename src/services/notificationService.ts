@@ -13,20 +13,81 @@ interface NotificationData {
 export class NotificationService {
   private isListening = false;
   private supportedApps = [
-    'com.nhn.android.naverpay',     // 네이버페이
-    'com.kakao.talk',               // 카카오톡 (카카오페이)
-    'viva.republica.toss',          // 토스
-    'com.nhnent.payapp',            // 페이코
-    'com.samsung.android.spay',     // 삼성페이
-    'com.lguplus.paynow',          // LG페이
-    'com.wooricard.wpay',          // 우리페이
-    'com.kbcard.cxh.appcard',      // KB페이
-    'com.shinhancard.smartshinhan', // 신한 페이판
-    'com.hyundaicard.appcard',     // 현대카드 앱카드
-    'com.nh.cashcardapp',          // 농협스마트뱅킹
-    'com.kbstar.kbbank',           // KB스타뱅킹
-    'com.shinhan.sbanking',        // 신한 쏠(SOL)
-    'com.wooribank.smart.npib'     // 우리원뱅킹
+    // 페이 서비스
+    'com.nhn.android.naverpay',         // 네이버페이
+    'com.kakao.talk',                   // 카카오톡 (카카오페이)
+    'viva.republica.toss',              // 토스
+    'com.nhnent.payapp',                // 페이코
+    'com.samsung.android.spay',         // 삼성페이
+    'com.lguplus.paynow',              // LG페이
+    'com.wooricard.wpay',              // 우리페이
+    'com.kbcard.cxh.appcard',          // KB페이
+    'com.shinhancard.smartshinhan',    // 신한 페이판
+    'com.hyundaicard.appcard',         // 현대카드 앱카드
+    'com.nhcard.nhappcard',            // NH페이
+    'com.lottecard.lottepay',          // 롯데페이
+    'com.hanacard.app',                // 하나페이
+    'com.citimobilekorea.citipay',     // 시티페이
+    'com.sccard.smartpay',             // SC제일은행 페이
+    
+    // 은행 앱
+    'com.nh.cashcardapp',              // NH농협스마트뱅킹
+    'com.kbstar.kbbank',               // KB스타뱅킹
+    'com.shinhan.sbanking',            // 신한 쏠(SOL)
+    'com.wooribank.smart.npib',        // 우리원뱅킹
+    'com.hanafn.mobile.android',       // 하나원큐
+    'kr.co.ibk.ibkbank',               // IBK기업은행
+    'com.keb.smart',                   // KEB하나은행
+    'kr.co.standardchartered.mobile',   // SC제일은행
+    'com.epost.psf.sdsi',              // 우체국스마트뱅킹
+    'com.dgb.mobile.android.smart',    // DGB대구은행
+    'com.busanbank.mobile.android',    // BNK부산은행
+    'com.gwangju.mobile.android',      // 광주은행
+    'com.kjbank.mobile.android',       // 광주은행
+    'com.jbbank.mobile.android',       // 전북은행
+    'com.knbank.mobile.android',       // 경남은행
+    'com.cu.mobile.android',           // 저축은행 중앙회
+    'com.suhyup.sbank.mobile',         // 수협은행
+    'com.nonghyup.mobile.android',     // 농협은행
+    'com.kfcc.mobile.android',         // 새마을금고
+    'com.kodit.android.kodit',         // 신용보증기금
+    
+    // 카드사 앱
+    'com.shinhancard.smartshinhan',    // 신한카드
+    'com.kbcard.cxh.appcard',          // KB국민카드
+    'com.wooricard.smartapp',          // 우리카드
+    'com.hyundaicard.appcard',         // 현대카드
+    'com.lottecard.lottecardapp',      // 롯데카드
+    'com.hanafn.mobile.android',       // 하나카드
+    'com.nhcard.nhappcard',            // NH농협카드
+    'com.citimobilekorea.citibank',    // 씨티카드
+    'com.sccard.smartpay',             // SC제일은행카드
+    'com.samsungcard.webapp',          // 삼성카드
+    'com.bccard.bcpay',                // BC카드
+    'com.koreapost.mobile',            // 우체국카드
+    'com.kdb.mobile.android',          // KDB산업은행
+    
+    // 증권사 앱
+    'com.nhqv.app',                    // NH투자증권
+    'com.kbsec.mobile.android',        // KB증권
+    'com.shinhan.alphasecurities',     // 신한투자증권
+    'com.miraeasset.trade',            // 미래에셋증권
+    'com.daishin.mobile.android',      // 대신증권
+    'com.yuantakorea.mobile',          // 유안타증권
+    'com.kiwoom.hero2.mobile.android', // 키움증권
+    'com.ibks.mobile.android',         // IBK투자증권
+    'com.truefriend.mobile.android',   // 한국투자증권
+    'com.hdsec.mobile.android',        // 현대차증권
+    
+    // 간편결제 앱
+    'com.sktelecom.tmap.pay',          // 티맵페이
+    'com.cjhelloworld.cjpay',          // CJ페이
+    'com.mobilians.paypin',            // 페이핀
+    'com.ssgpay.mobile.android',       // SSG페이
+    'com.elevenst.pay',                // 11번가 페이
+    'com.interpark.smartpay',          // 인터파크 페이
+    'com.gmarket.gmoney',              // 지마켓 G페이
+    'com.auction.aucpay'               // 옥션페이
   ];
 
   private paymentPatterns = {
@@ -55,6 +116,61 @@ export class NotificationService {
       textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
       type: 'expense' as const
     },
+    LG페이: {
+      titlePattern: /LG페이|LG Pay/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    우리페이: {
+      titlePattern: /우리페이|Woori Pay/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    KB페이: {
+      titlePattern: /KB페이|KB Pay/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    신한페이판: {
+      titlePattern: /신한|페이판/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    현대카드: {
+      titlePattern: /현대카드|Hyundai Card/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    NH페이: {
+      titlePattern: /NH페이|NH Pay|농협페이/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    롯데페이: {
+      titlePattern: /롯데페이|Lotte Pay/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    하나페이: {
+      titlePattern: /하나페이|Hana Pay/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    시티페이: {
+      titlePattern: /시티|Citi/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    삼성카드: {
+      titlePattern: /삼성카드|Samsung Card/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제|([^\d\s]+)에서\s+([\d,]+)원.*?승인/,
+      type: 'expense' as const
+    },
+    BC카드: {
+      titlePattern: /BC카드|BC Card/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제|([^\d\s]+)에서\s+([\d,]+)원.*?승인/,
+      type: 'expense' as const
+    },
     농협스마트뱅킹: {
       titlePattern: /농협|NH|스마트뱅킹/i,
       textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원.*?([^\d\s]+)/,
@@ -74,6 +190,61 @@ export class NotificationService {
       titlePattern: /우리|원뱅킹/i,
       textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
       type: 'expense' as const
+    },
+    하나원큐: {
+      titlePattern: /하나|원큐|1Q/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    IBK기업은행: {
+      titlePattern: /IBK|기업은행/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    SC제일은행: {
+      titlePattern: /SC|제일은행/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    우체국스마트뱅킹: {
+      titlePattern: /우체국|포스트|epost/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    DGB대구은행: {
+      titlePattern: /DGB|대구은행/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    BNK부산은행: {
+      titlePattern: /BNK|부산은행/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    수협은행: {
+      titlePattern: /수협|SUHYUP/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    새마을금고: {
+      titlePattern: /새마을|KFCC/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:입금|출금)|(?:입금|출금).*?([\d,]+)원/,
+      type: 'expense' as const
+    },
+    티맵페이: {
+      titlePattern: /티맵|TMAP/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    SSG페이: {
+      titlePattern: /SSG|신세계/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?결제/,
+      type: 'expense' as const
+    },
+    증권사알림: {
+      titlePattern: /증권|투자|주식|매수|매도/i,
+      textPattern: /([^\d\s]+).*?([\d,]+)원.*?(?:매수|매도)|(?:매수|매도).*?([\d,]+)원/,
+      type: 'income' as const
     }
   };
 
