@@ -10,6 +10,7 @@ interface Transaction {
   type: 'income' | 'expense';
   description: string | null;
   date: string;
+  institution: string | null;
   categories: {
     name: string;
   } | null;
@@ -36,6 +37,7 @@ export const RecentTransactions = ({ onDataRefresh }: RecentTransactionsProps) =
         type,
         description,
         date,
+        institution,
         categories (
           name
         )
@@ -107,7 +109,12 @@ export const RecentTransactions = ({ onDataRefresh }: RecentTransactionsProps) =
                     </div>
                     <div>
                       <div className="font-medium text-sm">{transaction.categories?.name || '카테고리 없음'}</div>
-                      <div className="text-xs text-muted-foreground">{transaction.description || '설명 없음'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {transaction.description || '설명 없음'}
+                        {transaction.institution && (
+                          <span className="ml-2 text-primary">• {transaction.institution}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">

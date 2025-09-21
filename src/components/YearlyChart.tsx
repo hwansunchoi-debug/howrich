@@ -28,6 +28,7 @@ export const YearlyChart = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [categories, setCategories] = useState<any[]>([]);
   const [monthlyAverage, setMonthlyAverage] = useState<number>(0);
+  const [yearlyTotals, setYearlyTotals] = useState({ totalIncomeSum: 0, totalExpenseSum: 0 });
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -39,7 +40,11 @@ export const YearlyChart = () => {
     if (user) {
       fetchUsers();
       fetchCategories();
-      fetchYearlyData();
+      fetchYearlyData().then((totals) => {
+        if (totals) {
+          setYearlyTotals(totals);
+        }
+      });
     }
   }, [user, selectedYear, userFilter, categoryTypeFilter, categoryFilter]);
 
@@ -107,6 +112,7 @@ export const YearlyChart = () => {
     
     const monthlyData: MonthlyData[] = [];
     let totalExpenseSum = 0;
+    let totalIncomeSum = 0;
     let monthsWithExpenses = 0;
     
     for (let month = 1; month <= 12; month++) {
@@ -181,9 +187,10 @@ export const YearlyChart = () => {
       const totalIncome = incomeData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       const totalExpense = expenseData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       
-      // 2025년 월 평균 지출액 계산을 위해 누적
-      if (selectedYear === 2025 && totalExpense > 0) {
-        totalExpenseSum += totalExpense;
+      // 연도별 합계 계산을 위해 누적
+      totalIncomeSum += totalIncome;
+      totalExpenseSum += totalExpense;
+      if (totalExpense > 0) {
         monthsWithExpenses++;
       }
       
@@ -195,7 +202,7 @@ export const YearlyChart = () => {
       });
     }
     
-    // 2025년 월 평균 지출액 계산
+    // 연도별 합계 및 월 평균 계산
     if (selectedYear === 2025) {
       const currentMonth = new Date().getMonth() + 1;
       const monthsToCalculate = currentMonth > 12 ? 12 : currentMonth;
@@ -207,6 +214,9 @@ export const YearlyChart = () => {
     
     setData(monthlyData);
     setLoading(false);
+    
+    // Return totals for UI display
+    return { totalIncomeSum, totalExpenseSum };
   };
 
   const formatCurrency = (value: number) => {
@@ -327,19 +337,49 @@ export const YearlyChart = () => {
           </div>
         </div>
         
-        {selectedYear === 2025 && monthlyAverage > 0 && (
+        {/* 연도별 합계 및 평균 표시 */}
+        <div className="space-y-4">
           <div className="bg-muted/50 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">2025년 월 평균 지출액</span>
-              <span className="text-lg font-bold text-destructive">
-                {Math.floor(monthlyAverage).toLocaleString()}원
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              ({formatCurrency(monthlyAverage)})
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">{selectedYear}년 수입 합계</span>
+                <span className="text-lg font-bold text-income">
+                  {Math.floor(yearlyTotals.totalIncomeSum).toLocaleString()}원
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                ({formatCurrency(yearlyTotals.totalIncomeSum)})
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">{selectedYear}년 지출 합계</span>
+                <span className="text-lg font-bold text-destructive">
+                  {Math.floor(yearlyTotals.totalExpenseSum).toLocaleString()}원
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                ({formatCurrency(yearlyTotals.totalExpenseSum)})
+                </div>
+              </div>
             </div>
           </div>
-        )}
+          
+          {selectedYear === 2025 && monthlyAverage > 0 && (
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">2025년 월 평균 지출액</span>
+                <span className="text-lg font-bold text-destructive">
+                  {Math.floor(monthlyAverage).toLocaleString()}원
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                ({formatCurrency(monthlyAverage)})
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       <CardContent>
         {loading ? (

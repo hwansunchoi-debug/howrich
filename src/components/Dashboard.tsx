@@ -39,7 +39,7 @@ export const Dashboard = () => {
   const [setupCompleted, setSetupCompleted] = useState<boolean | null>(null);
   const [selectedView, setSelectedView] = useState<'me' | 'spouse' | 'family'>('me');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | string>(new Date().getMonth() + 1);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -147,7 +147,7 @@ export const Dashboard = () => {
     if (!user) return;
     
     const currentYear = selectedYear;
-    const currentMonth = selectedMonth;
+    const currentMonth = typeof selectedMonth === 'number' ? selectedMonth : new Date().getMonth() + 1;
     
     // 권한에 따라 사용자 ID 결정
     let userIds: string[] = [user.id]; // 기본값: 본인만
@@ -188,32 +188,42 @@ export const Dashboard = () => {
       return;
     }
     
-    // 이번 달 수입 조회
+    // 날짜 범위 설정
+    let startDate, endDate;
+    if (selectedMonth === 'all') {
+      startDate = `${currentYear}-01-01`;
+      endDate = `${currentYear}-12-31`;
+    } else {
+      startDate = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`;
+      endDate = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`;
+    }
+
+    // 수입 조회
     const { data: incomeData } = await supabase
       .from('transactions')
       .select('amount')
       .eq('type', 'income')
       .in('user_id', userIds)
-      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+      .gte('date', startDate)
+      .lt('date', endDate);
     
-    // 이번 달 지출 조회
+    // 지출 조회
     const { data: expenseData } = await supabase
       .from('transactions')
       .select('amount')
       .eq('type', 'expense')
       .in('user_id', userIds)
-      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+      .gte('date', startDate)
+      .lt('date', endDate);
     
-    // 이번 달 기타 조회
+    // 기타 조회
     const { data: otherData } = await supabase
       .from('transactions')
       .select('amount')
       .eq('type', 'other')
       .in('user_id', userIds)
-      .gte('date', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-      .lt('date', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
+      .gte('date', startDate)
+      .lt('date', endDate);
 
     const totalIncome = incomeData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
     const totalExpense = expenseData?.reduce((sum, transaction) => sum + Number(transaction.amount), 0) || 0;
@@ -308,9 +318,9 @@ export const Dashboard = () => {
                  selectedView === 'spouse' ? '배우자 가계부' : '가족 가계부'}
               </h1>
               <div className="flex items-center gap-4 flex-wrap">
-                <p className="text-muted-foreground">
-                  {selectedYear}년 {selectedMonth}월 재무현황
-                </p>
+                 <p className="text-muted-foreground">
+                   {selectedYear}년 {selectedMonth === 'all' ? '전체' : `${selectedMonth}월`} 재무현황
+                 </p>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <Select
@@ -331,21 +341,22 @@ export const Dashboard = () => {
                       })}
                     </SelectContent>
                   </Select>
-                  <Select
-                    value={selectedMonth.toString()}
-                    onValueChange={(value) => setSelectedMonth(Number(value))}
-                  >
-                    <SelectTrigger className="w-16">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <SelectItem key={i + 1} value={(i + 1).toString()}>
-                          {i + 1}월
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                   <Select
+                     value={selectedMonth.toString()}
+                     onValueChange={(value) => setSelectedMonth(value === 'all' ? 'all' : Number(value))}
+                   >
+                     <SelectTrigger className="w-20">
+                       <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="all">전체</SelectItem>
+                       {Array.from({ length: 12 }, (_, i) => (
+                         <SelectItem key={i + 1} value={(i + 1).toString()}>
+                           {i + 1}월
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
                 </div>
               </div>
             </div>

@@ -115,9 +115,20 @@ All colors MUST be HSL.
 @layer base {
   * {
     @apply border-border;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    overflow-x: hidden; /* 가로 스크롤 방지 */
+    max-width: 100vw; /* 화면 너비를 초과하지 않도록 */
   }
 
   body {
     @apply bg-background text-foreground;
+    width: 100%;
+    max-width: 100vw;
   }
 }

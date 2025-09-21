@@ -64,13 +64,18 @@ export default function CategoryManagement() {
   const [bulkMode, setBulkMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'merchants' | 'categories'>('merchants');
   const [bulkCategoryId, setBulkCategoryId] = useState('');
+  const [selectedUser, setSelectedUser] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number | string>('all');
+  const [userList, setUserList] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
       fetchTransactions();
       fetchCategories();
+      fetchUserList();
     }
-  }, [user]);
+  }, [user, selectedUser, selectedYear, selectedMonth]);
 
   useEffect(() => {
     groupTransactionsByMerchant();
@@ -105,17 +110,50 @@ export default function CategoryManagement() {
     }
   };
 
-  const fetchTransactions = async () => {
+  const fetchUserList = async () => {
     try {
       const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, email')
+        .order('display_name');
+      
+      if (error) throw error;
+      setUserList(data || []);
+    } catch (error) {
+      console.error('사용자 목록 조회 실패:', error);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      let query = supabase
         .from('transactions')
         .select(`
           *,
           categories(id, name, color)
         `)
-        .eq('user_id', user?.id)
         .order('date', { ascending: false })
         .limit(1000);
+
+      // 사용자 필터 적용
+      if (selectedUser !== 'all') {
+        query = query.eq('user_id', selectedUser);
+      } else {
+        query = query.eq('user_id', user?.id);
+      }
+
+      // 날짜 필터 적용
+      if (selectedMonth !== 'all') {
+        const startDate = `${selectedYear}-${(selectedMonth as number).toString().padStart(2, '0')}-01`;
+        const endDate = new Date(selectedYear, selectedMonth as number, 0).toISOString().split('T')[0];
+        query = query.gte('date', startDate).lte('date', endDate);
+      } else {
+        const startDate = `${selectedYear}-01-01`;
+        const endDate = `${selectedYear}-12-31`;
+        query = query.gte('date', startDate).lte('date', endDate);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -145,10 +183,8 @@ export default function CategoryManagement() {
       filteredTransactions = filteredTransactions.filter(t => t.type === selectedCategoryType);
     }
 
-    // 기본적으로 미분류 거래만 보여주기 (카테고리 분류가 완료된 가맹점은 숨기기)
-    if (selectedCategory === 'all') {
-      filteredTransactions = filteredTransactions.filter(t => !t.category_id);
-    } else if (selectedCategory === 'uncategorized') {
+    // 카테고리 필터 적용 (모든 거래 표시)
+    if (selectedCategory === 'uncategorized') {
       filteredTransactions = filteredTransactions.filter(t => !t.category_id);
     } else if (selectedCategory !== 'all') {
       filteredTransactions = filteredTransactions.filter(t => t.category?.id === selectedCategory);
@@ -613,6 +649,98 @@ export default function CategoryManagement() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-5">
+                  {/* 사용자 필터 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">사용자</label>
+                    <Select value={selectedUser} onValueChange={setSelectedUser}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        {userList.map((user) => (
+                          <SelectItem key={user.user_id} value={user.user_id}>
+                            {user.display_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 연도 필터 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">년도</label>
+                    <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2023">2023년</SelectItem>
+                        <SelectItem value="2024">2024년</SelectItem>
+                        <SelectItem value="2025">2025년</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 월 필터 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">월</label>
+                    <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(value === 'all' ? 'all' : parseInt(value))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        {Array.from({ length: 12 }, (_, i) => (
+                          <SelectItem key={i + 1} value={(i + 1).toString()}>
+                            {i + 1}월
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 대분류 필터 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">대분류</label>
+                    <Select value={selectedCategoryType} onValueChange={setSelectedCategoryType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="income">수입</SelectItem>
+                        <SelectItem value="expense">지출</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 카테고리 필터 */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">카테고리</label>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="uncategorized">미분류</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: category.color }}
+                              />
+                              {category.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 <div className="grid gap-4 md:grid-cols-3">
                   <div>
                     <label className="text-sm font-medium mb-2 block">대분류 필터</label>

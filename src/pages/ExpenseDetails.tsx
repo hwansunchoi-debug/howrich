@@ -51,7 +51,7 @@ export default function ExpenseDetails() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [institutions, setInstitutions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | string>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>();
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
@@ -118,8 +118,14 @@ export default function ExpenseDetails() {
   const fetchInstitutions = async () => {
     try {
       // 현재 선택된 년월의 지출 내역에서 금융기관 목록 추출
-      const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+      let startDate, endDate;
+      if (selectedMonth === 'all') {
+        startDate = `${selectedYear}-01-01`;
+        endDate = `${selectedYear}-12-31`;
+      } else {
+        startDate = `${selectedYear}-${(selectedMonth as number).toString().padStart(2, '0')}-01`;
+        endDate = new Date(selectedYear, selectedMonth as number, 0).toISOString().split('T')[0];
+      }
       
       const { data, error } = await supabase
         .from('transactions')
@@ -174,10 +180,15 @@ export default function ExpenseDetails() {
         query = query
           .gte('date', format(selectedDateRange.from, 'yyyy-MM-dd'))
           .lte('date', format(selectedDateRange.to, 'yyyy-MM-dd'));
+      } else if (selectedMonth === 'all') {
+        // 전체 월 선택시 해당 연도 전체
+        const startDate = `${selectedYear}-01-01`;
+        const endDate = `${selectedYear}-12-31`;
+        query = query.gte('date', startDate).lte('date', endDate);
       } else {
         // 기본적으로 선택된 년월로 필터링
-        const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
-        const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+        const startDate = `${selectedYear}-${(selectedMonth as number).toString().padStart(2, '0')}-01`;
+        const endDate = new Date(selectedYear, selectedMonth as number, 0).toISOString().split('T')[0];
         query = query.gte('date', startDate).lte('date', endDate);
       }
 
@@ -497,7 +508,7 @@ export default function ExpenseDetails() {
                 {/* 월 선택 */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">월</label>
-                  <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+                  <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(value === 'all' ? 'all' : parseInt(value))}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
