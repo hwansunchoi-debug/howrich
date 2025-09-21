@@ -66,64 +66,40 @@ export const PermissionManager: React.FC = () => {
     console.log('SMS 권한 요청 시작...');
     
     try {
-      // Android 권한 직접 요청 방법들을 시도
-      if ((window as any).cordova && (window as any).cordova.plugins && (window as any).cordova.plugins.permissions) {
-        console.log('Cordova permissions 플러그인 사용');
-        const permissions = (window as any).cordova.plugins.permissions;
-        const permission = permissions.READ_SMS;
+      // capacitor-sms 플러그인 사용
+      if ((window as any).CapacitorSms) {
+        console.log('CapacitorSms 플러그인 사용');
+        const smsPlugin = (window as any).CapacitorSms;
         
-        await new Promise<void>((resolve, reject) => {
-          permissions.requestPermission(
-            permission,
-            (status: any) => {
-              console.log('SMS 권한 요청 결과:', status);
-              if (status.hasPermission) {
-                setPermissions(prev => ({ ...prev, sms: 'granted' }));
-                toast.success('문자 읽기 권한이 허용되었습니다.');
-                resolve();
-              } else {
-                setPermissions(prev => ({ ...prev, sms: 'denied' }));
-                toast.error('문자 읽기 권한이 거부되었습니다.');
-                reject(new Error('권한 거부됨'));
-              }
-            },
-            (error: any) => {
-              console.log('SMS 권한 요청 에러:', error);
-              setPermissions(prev => ({ ...prev, sms: 'denied' }));
-              toast.error('문자 읽기 권한 요청에 실패했습니다.');
-              reject(error);
-            }
-          );
-        });
-      } else if (window.SMS) {
-        console.log('SMS 플러그인으로 권한 테스트');
-        // SMS 플러그인을 통한 권한 확인
-        await new Promise<void>((resolve, reject) => {
-          window.SMS.listSMS(
-            { box: 'inbox', maxCount: 1 },
-            (messages: any) => {
-              console.log('SMS 읽기 성공:', messages);
-              setPermissions(prev => ({ ...prev, sms: 'granted' }));
-              toast.success('문자 읽기 권한이 허용되었습니다.');
-              resolve();
-            },
-            (error: any) => {
-              console.log('SMS 읽기 실패:', error);
-              setPermissions(prev => ({ ...prev, sms: 'denied' }));
-              toast.error('문자 읽기 권한이 필요합니다. 설정 > 앱 > 권한에서 허용해주세요.');
-              reject(error);
-            }
-          );
-        });
+        // 권한 확인
+        const hasPermission = await smsPlugin.checkPermissions();
+        console.log('SMS 권한 상태:', hasPermission);
+        
+        if (hasPermission.sms === 'granted') {
+          setPermissions(prev => ({ ...prev, sms: 'granted' }));
+          toast.success('문자 읽기 권한이 이미 허용되어 있습니다.');
+        } else {
+          // 권한 요청
+          const requestResult = await smsPlugin.requestPermissions();
+          console.log('SMS 권한 요청 결과:', requestResult);
+          
+          if (requestResult.sms === 'granted') {
+            setPermissions(prev => ({ ...prev, sms: 'granted' }));
+            toast.success('문자 읽기 권한이 허용되었습니다.');
+          } else {
+            setPermissions(prev => ({ ...prev, sms: 'denied' }));
+            toast.error('문자 읽기 권한이 거부되었습니다. 설정에서 수동으로 허용해주세요.');
+          }
+        }
       } else {
-        console.error('SMS 플러그인을 찾을 수 없습니다.');
-        toast.error('SMS 플러그인이 설치되지 않았습니다.');
+        console.error('CapacitorSms 플러그인을 찾을 수 없습니다.');
+        toast.error('SMS 플러그인이 로드되지 않았습니다. 앱을 다시 빌드하고 sync해주세요.');
         setPermissions(prev => ({ ...prev, sms: 'denied' }));
       }
     } catch (error) {
       console.error('SMS 권한 요청 실패:', error);
       setPermissions(prev => ({ ...prev, sms: 'denied' }));
-      toast.error('SMS 권한 요청에 실패했습니다.');
+      toast.error(`SMS 권한 요청에 실패했습니다: ${error}`);
     } finally {
       setIsLoading(false);
     }
