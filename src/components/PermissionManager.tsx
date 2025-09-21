@@ -53,29 +53,20 @@ export const PermissionManager: React.FC = () => {
 
   const requestSMSPermission = async () => {
     if (!Capacitor.isNativePlatform()) {
-      toast.error('모바일 환경에서만 사용 가능합니다.');
+      toast.info('모바일 환경에서만 SMS 권한 설정이 가능합니다.');
       return;
     }
 
     if (Capacitor.getPlatform() !== 'android') {
-      toast.error('문자 권한은 Android에서만 지원됩니다.');
+      toast.info('SMS 권한은 Android에서만 지원됩니다.');
       return;
     }
 
-    setIsLoading(true);
-    console.log('SMS 권한 안내...');
-    
-    try {
-      // Android 14+ 에서는 런타임 권한 요청이 제한되므로 사용자에게 수동 설정 안내
-      setPermissions(prev => ({ ...prev, sms: 'denied' }));
-      toast.info('Android 14+ 에서는 SMS 권한을 수동으로 설정해야 합니다.\n\n1. 설정 > 앱 > 이 앱 선택\n2. 메뉴(⋮) > "제한된 설정 허용"\n3. 권한 > SMS > 허용');
-    } catch (error) {
-      console.error('SMS 권한 안내 실패:', error);
-      setPermissions(prev => ({ ...prev, sms: 'denied' }));
-      toast.info('설정에서 수동으로 SMS 권한을 허용해주세요.');
-    } finally {
-      setIsLoading(false);
-    }
+    // 사용자에게 수동 설정 방법 안내
+    setPermissions(prev => ({ ...prev, sms: 'denied' }));
+    toast.info('SMS 권한을 수동으로 설정해주세요:\n\n1. 설정 > 앱 > 이 앱\n2. 메뉴(⋮) > "제한된 설정 허용"\n3. 권한 > SMS > 허용', {
+      duration: 10000
+    });
   };
 
   const requestNotificationPermission = async () => {
@@ -164,10 +155,9 @@ export const PermissionManager: React.FC = () => {
             </div>
             <Button
               onClick={requestSMSPermission}
-              disabled={isLoading}
               variant="default"
             >
-              설정 안내 보기
+              설정 방법 보기
             </Button>
           </div>
           {permissions.sms === 'denied' && (

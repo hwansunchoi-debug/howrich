@@ -6,9 +6,6 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   bundledWebRuntime: true,
   plugins: {
-    SmsReader: {
-      startListeningAutomatically: true
-    },
     PushNotifications: {
       presentationOptions: ["badge", "sound", "alert"]
     }
