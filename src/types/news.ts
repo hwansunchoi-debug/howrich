@@ -3,6 +3,7 @@ export type IssueTrend = "surging" | "rising" | "steady" | "cooling";
 export interface NewsIssue {
   id: string;
   title: string;
+  emoji: string | null;
   description: string | null;
   issue_score: number;
   article_count: number;
@@ -45,4 +46,6 @@ export interface IssueDetail {
   issue: NewsIssue;
   sections: TimelineSection[];
   publisherCount: number;
+  /** 이 이슈를 가장 먼저 보도한 기사 */
+  firstArticle: NewsArticle | null;
 }

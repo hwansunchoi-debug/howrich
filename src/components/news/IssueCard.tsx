@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { TrendBadge } from "./TrendBadge";
 import { FollowButton } from "./FollowButton";
 import { formatRelative } from "@/lib/newsTime";
+import { issueEmoji } from "@/lib/issueEmoji";
 import type { NewsIssue } from "@/types/news";
 
 interface IssueCardProps {
@@ -34,6 +35,9 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <h2 className="min-w-0 flex-1 text-base font-semibold leading-snug text-foreground sm:text-lg">
+            <span className="mr-1.5" aria-hidden>
+              {issueEmoji(issue)}
+            </span>
             {issue.title}
           </h2>
           <TrendBadge trend={issue.trend} className="mt-0.5" />

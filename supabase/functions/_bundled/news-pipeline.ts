@@ -326,6 +326,13 @@ var SYSTEM_PROMPT = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uD3B8\uC9D1\u
 - \uD2B9\uC815 \uAE30\uC0AC \uC81C\uBAA9\uC744 \uADF8\uB300\uB85C \uBCA0\uB07C\uC9C0 \uC54A\uB294\uB2E4.
 - \uC790\uADF9\uC801\uC778 \uD45C\uD604\uC774\uB098 \uCD94\uCE21\uC744 \uB123\uC9C0 \uC54A\uB294\uB2E4.
 
+\uC774\uBAA8\uC9C0(emoji) \uADDC\uCE59:
+- \uC774\uC288 \uC131\uACA9\uC744 \uD55C\uB208\uC5D0 \uC54C \uC218 \uC788\uB294 \uC774\uBAA8\uC9C0 \uD55C \uAC1C.
+- \uC608) \uC7AC\uB09C\xB7\uC0AC\uACE0 \u{1F6A8}, \uB0A0\uC528\xB7\uAE30\uD6C4 \u{1F327}\uFE0F, \uC815\uCE58 \u{1F3DB}\uFE0F, \uC120\uAC70 \u{1F5F3}\uFE0F, \uC7AC\uD310\xB7\uC218\uC0AC \u2696\uFE0F,
+  \uACBD\uC81C\xB7\uC99D\uC2DC \u{1F4C8}, \uBD80\uB3D9\uC0B0 \u{1F3E0}, \uC678\uAD50\xB7\uAD6D\uC81C \u{1F30F}, \uB178\uB3D9\xB7\uD30C\uC5C5 \u270A, \uAD50\uC721 \u{1F393},
+  \uBCF4\uAC74\xB7\uC758\uB8CC \u{1F3E5}, \uACFC\uD559\xB7\uAE30\uC220 \u{1F52C}, \uC2A4\uD3EC\uCE20 \u26BD, \uBB38\uD654\xB7\uC5F0\uC608 \u{1F3AC}, \uC0AC\uAC74\xB7\uC0AC\uACE0 \u{1F693}
+- \uBAA9\uB85D\uC5D0 \uC5C6\uC5B4\uB3C4 \uB354 \uC798 \uB9DE\uB294 \uC774\uBAA8\uC9C0\uAC00 \uC788\uC73C\uBA74 \uADF8\uAC83\uC744 \uC4F4\uB2E4.
+
 \uC124\uBA85(description) \uADDC\uCE59:
 - \uD604\uC7AC \uC0C1\uD669\uC744 \uC124\uBA85\uD558\uB294 \uD55C \uBB38\uC7A5. 40\uC790 \uB0B4\uC678.
 - \uAE30\uC0AC\uC5D0\uC11C \uD655\uC778\uB418\uB294 \uC0AC\uC2E4\uB9CC \uC4F4\uB2E4.
@@ -333,7 +340,7 @@ var SYSTEM_PROMPT = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uD3B8\uC9D1\u
 \uBC18\uB4DC\uC2DC \uC544\uB798 JSON \uD615\uC2DD\uB9CC \uCD9C\uB825\uD55C\uB2E4. \uB2E4\uB978 \uD14D\uC2A4\uD2B8\uB294 \uC4F0\uC9C0 \uC54A\uB294\uB2E4.
 {
   "assignments": [{ "index": 0, "issue_id": "\uAE30\uC874 \uC774\uC288 id" }],
-  "new_issues": [{ "title": "\uC0C8 \uC774\uC288 \uC81C\uBAA9", "description": "\uD55C \uC904 \uC124\uBA85", "indexes": [1, 2] }],
+  "new_issues": [{ "title": "\uC0C8 \uC774\uC288 \uC81C\uBAA9", "emoji": "\u{1F3DB}\uFE0F", "description": "\uD55C \uC904 \uC124\uBA85", "indexes": [1, 2] }],
   "skipped": [3]
 }
 \uBAA8\uB4E0 \uAE30\uC0AC index \uB294 assignments / new_issues / skipped \uC911 \uC815\uD655\uD788 \uD55C \uACF3\uC5D0\uB9CC \uB123\uB294\uB2E4.`;
@@ -401,6 +408,7 @@ async function clusterArticles(supabase, options = {}) {
     if (members.length === 0) continue;
     const { data: inserted, error: insertError } = await supabase.from("issues").insert({
       title: title.slice(0, 80),
+      emoji: pickEmoji(group.emoji),
       description: (group.description ?? "").trim().slice(0, 200) || null
     }).select("id").single();
     if (insertError || !inserted) {
@@ -430,6 +438,12 @@ async function clusterArticles(supabase, options = {}) {
     skipped: skipped + (articles.length - usedIndexes.size),
     newIssueTitles
   };
+}
+function pickEmoji(value) {
+  if (typeof value !== "string") return null;
+  const first = [...value.trim()][0];
+  if (!first) return null;
+  return /[\p{Extended_Pictographic}]/u.test(first) ? first : null;
 }
 async function loadIssueCandidates(supabase) {
   const since = new Date(Date.now() - 48 * 60 * 60 * 1e3).toISOString();
@@ -554,9 +568,11 @@ async function buildTimelineForIssue(supabase, issue) {
     existing.set(new Date(row.start_time).toISOString(), row);
   }
   const rebuildFrom = Date.now() - 26 * 60 * 60 * 1e3;
+  const oldestKey = [...buckets.keys()].sort()[0];
   const pending = [...buckets.entries()].filter(([key, list]) => {
-    if (new Date(key).getTime() < rebuildFrom) return false;
     const current = existing.get(key);
+    if (key === oldestKey && !current) return true;
+    if (new Date(key).getTime() < rebuildFrom) return false;
     return !current || current.article_count !== list.length;
   }).sort((a, b) => a[0].localeCompare(b[0]));
   if (pending.length === 0) {

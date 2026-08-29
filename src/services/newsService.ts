@@ -9,21 +9,16 @@ import type {
 } from "@/types/news";
 
 const ISSUE_COLUMNS =
-  "id, title, description, issue_score, article_count, recent_article_count, last_hour_count, prev_hour_count, trend, last_article_at, created_at, updated_at";
-
-const ACTIVE_WINDOW_HOURS = 48;
+  "id, title, emoji, description, issue_score, article_count, recent_article_count, last_hour_count, prev_hour_count, trend, last_article_at, created_at, updated_at";
 
 /** 지금 이슈가 되고 있는 순서대로 이슈 목록을 가져온다. */
 export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
-  const since = new Date(
-    Date.now() - ACTIVE_WINDOW_HOURS * 60 * 60 * 1000,
-  ).toISOString();
-
+  // 항상 20개를 채워 보여준다. 오래된 이슈는 최신성 점수가 떨어져
+  // 자연스럽게 뒤로 밀리므로 시간 조건을 따로 걸지 않는다.
   const { data, error } = await supabase
     .from("issues")
     .select(ISSUE_COLUMNS)
     .gt("article_count", 0)
-    .gte("last_article_at", since)
     .order("issue_score", { ascending: false })
     .limit(limit);
 
@@ -123,8 +118,11 @@ export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
   if (issueError) throw new Error(issueError.message);
   if (!issueRow) throw new Error("이슈를 찾을 수 없습니다.");
 
-  const [{ data: eventRows, error: eventError }, { data: articleRows, error: articleError }] =
-    await Promise.all([
+  const [
+    { data: eventRows, error: eventError },
+    { data: articleRows, error: articleError },
+    { data: firstRow, error: firstError },
+  ] = await Promise.all([
       supabase
         .from("timeline_events")
         .select("id, issue_id, start_time, end_time, summary, article_count")
@@ -138,28 +136,46 @@ export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
         .eq("issue_articles.issue_id", issueId)
         .order("published_at", { ascending: false })
         .limit(300),
+      // 기사가 300건을 넘어도 최초 보도는 반드시 보이도록 따로 가져온다.
+      supabase
+        .from("articles")
+        .select(
+          "id, title, publisher, published_at, url, summary, issue_articles!inner(issue_id)",
+        )
+        .eq("issue_articles.issue_id", issueId)
+        .order("published_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
   if (eventError) throw new Error(eventError.message);
   if (articleError) throw new Error(articleError.message);
+  if (firstError) throw new Error(firstError.message);
 
   const events = (eventRows ?? []) as TimelineEvent[];
   // 조인용으로 함께 내려온 issue_articles 키는 떼어낸다.
-  const articles: NewsArticle[] = (articleRows ?? []).map(
-    ({ id, title, publisher, published_at, url, summary }) => ({
-      id,
-      title,
-      publisher,
-      published_at,
-      url,
-      summary,
-    }),
-  );
+  const toArticle = ({
+    id,
+    title,
+    publisher,
+    published_at,
+    url,
+    summary,
+  }: NewsArticle): NewsArticle => ({ id, title, publisher, published_at, url, summary });
+
+  const articles: NewsArticle[] = (articleRows ?? []).map(toArticle);
+  const firstArticle = firstRow ? toArticle(firstRow as NewsArticle) : null;
+
+  // 최신 300건에 들어 있지 않으면 목록에 더한다.
+  if (firstArticle && !articles.some((article) => article.id === firstArticle.id)) {
+    articles.push(firstArticle);
+  }
 
   return {
     issue: issueRow as NewsIssue,
     sections: buildSections(events, articles),
     publisherCount: new Set(articles.map((article) => article.publisher)).size,
+    firstArticle,
   };
 }
 
