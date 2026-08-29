@@ -66,17 +66,35 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
+          # 출입증이 프로젝트 하나로 좁혀진 경우와 조직 전체인 경우를 모두 지원한다.
           region=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            https://api.supabase.com/v1/projects \
-            | jq -r --arg ref "$PROJECT_REF" '.[] | select(.id == $ref) | .region' | head -1)
+            "https://api.supabase.com/v1/projects/$PROJECT_REF" \
+            | jq -r 'select(type == "object") | .region // empty' 2>/dev/null | head -1)
+
+          if [ -z "$region" ]; then
+            region=$(curl -sS -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              https://api.supabase.com/v1/projects \
+              | jq -r --arg ref "$PROJECT_REF" 'select(type == "array") | .[] | select(.id == $ref) | .region' 2>/dev/null | head -1)
+          fi
+
           echo "프로젝트 지역: ${region:-알 수 없음}"
+
+          # 지역을 못 찾으면 흔히 쓰이는 지역들을 후보에 넣어 차례로 시도한다.
+          if [ -z "$region" ] || [ "$region" = "null" ]; then
+            echo "지역 조회에 실패했습니다. 알려진 지역들을 차례로 시도합니다."
+            fallback_regions="ap-northeast-2 ap-northeast-1 us-east-1 us-west-1 ap-southeast-1 eu-central-1"
+          else
+            fallback_regions=""
+          fi
 
           # 접속 가능한 주소를 순서대로 시도한다.
           candidates=""
-          if [ -n "$region" ] && [ "$region" != "null" ]; then
-            candidates="aws-0-$region.pooler.supabase.com|postgres.$PROJECT_REF
-          aws-1-$region.pooler.supabase.com|postgres.$PROJECT_REF"
-          fi
+          for r in $region $fallback_regions; do
+            [ "$r" = "null" ] && continue
+            candidates="$candidates
+          aws-0-$r.pooler.supabase.com|postgres.$PROJECT_REF
+          aws-1-$r.pooler.supabase.com|postgres.$PROJECT_REF"
+          done
           candidates="$candidates
           db.$PROJECT_REF.supabase.co|postgres"
 
