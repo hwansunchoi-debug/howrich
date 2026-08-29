@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, Star } from "lucide-react";
 import { IssueCard } from "@/components/news/IssueCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchTopIssues } from "@/services/newsService";
+import { useFollowedIssues } from "@/hooks/useFollowedIssues";
+import { fetchIssuesByIds, fetchTopIssues } from "@/services/newsService";
 import { formatRelative } from "@/lib/newsTime";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
 export default function NewsHome() {
+  const { followedIds, toggleFollow, isFollowed } = useFollowedIssues();
+
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } =
     useQuery({
       queryKey: ["news", "issues"],
@@ -17,7 +20,18 @@ export default function NewsHome() {
       staleTime: 30_000,
     });
 
+  // 팔로우한 이슈는 순위에서 밀려도 따로 가져와 위쪽에 고정한다.
+  const { data: followedIssues = [] } = useQuery({
+    queryKey: ["news", "followed", followedIds],
+    queryFn: () => fetchIssuesByIds(followedIds),
+    enabled: followedIds.length > 0,
+    refetchInterval: REFRESH_INTERVAL_MS,
+    staleTime: 30_000,
+  });
+
   const issues = data ?? [];
+  const followedSet = new Set(followedIds);
+  const rest = issues.filter((issue) => !followedSet.has(issue.id));
 
   return (
     <div className="min-h-screen bg-background">
@@ -52,6 +66,29 @@ export default function NewsHome() {
           여러 언론사의 기사를 모아 같은 사건끼리 묶고, 지금 가장 크게 번지고 있는
           순서로 보여줍니다.
         </p>
+
+        {followedIssues.length > 0 && (
+          <section className="mb-7">
+            <h2 className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <Star className="h-4 w-4 fill-primary text-primary" />
+              팔로우 중인 이슈
+            </h2>
+            <ul className="space-y-3">
+              {followedIssues.map((issue) => (
+                <li key={issue.id}>
+                  <IssueCard
+                    issue={issue}
+                    followed
+                    onToggleFollow={() => toggleFollow(issue.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2.5 text-xs text-muted-foreground">
+              순위에서 밀려도 여기에 계속 남습니다. 이 브라우저에만 저장됩니다.
+            </p>
+          </section>
+        )}
 
         {isLoading && (
           <div className="space-y-3">
@@ -90,14 +127,26 @@ export default function NewsHome() {
           </div>
         )}
 
-        {issues.length > 0 && (
-          <ol className="space-y-3">
-            {issues.map((issue, index) => (
-              <li key={issue.id}>
-                <IssueCard issue={issue} rank={index + 1} />
-              </li>
-            ))}
-          </ol>
+        {rest.length > 0 && (
+          <section>
+            {followedIssues.length > 0 && (
+              <h2 className="mb-2.5 text-sm font-semibold text-foreground">
+                지금 주요 이슈
+              </h2>
+            )}
+            <ol className="space-y-3">
+              {rest.map((issue) => (
+                <li key={issue.id}>
+                  <IssueCard
+                    issue={issue}
+                    rank={issues.indexOf(issue) + 1}
+                    followed={isFollowed(issue.id)}
+                    onToggleFollow={() => toggleFollow(issue.id)}
+                  />
+                </li>
+              ))}
+            </ol>
+          </section>
         )}
 
         <p className="mt-8 text-center text-xs text-muted-foreground">

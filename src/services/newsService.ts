@@ -31,6 +31,24 @@ export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
   return (data ?? []) as NewsIssue[];
 }
 
+/**
+ * 팔로우한 이슈를 id 로 가져온다.
+ * 순위에서 밀리거나 48시간이 지난 이슈도 계속 추적할 수 있어야 하므로
+ * fetchTopIssues 와 달리 시간 조건을 걸지 않는다.
+ */
+export async function fetchIssuesByIds(ids: string[]): Promise<NewsIssue[]> {
+  if (ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("issues")
+    .select(ISSUE_COLUMNS)
+    .in("id", ids)
+    .order("issue_score", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as NewsIssue[];
+}
+
 /** 이슈 상세: 현재 상황 요약 + 시간대별 타임라인 + 시간대별 기사 */
 export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
   const { data: issueRow, error: issueError } = await supabase

@@ -44,6 +44,10 @@ const SYSTEM_PROMPT = `당신은 한국 뉴스 이슈의 진행 상황을 시간
 issue_description 은 이 이슈의 "현재 상황"을 한 문장(40자 내외)으로 정리한 것이다.
 가장 최근 상황 기준으로 쓴다.
 
+매우 중요: 요약할_시간대 에 들어 있는 start_time 은 **하나도 빠짐없이** buckets 에
+넣어야 한다. 기사가 한 건뿐이거나 앞 시간대와 내용이 겹쳐도 건너뛰지 않는다.
+그런 경우에도 그 시간대에 무엇이 보도됐는지 한 문장으로 쓴다.
+
 반드시 아래 JSON 형식만 출력한다.
 {
   "issue_description": "현재 상황 한 줄 요약",
@@ -55,7 +59,7 @@ export async function buildTimelines(
   supabase: SupabaseClient,
   options: { maxIssues?: number } = {},
 ): Promise<TimelineResult> {
-  const maxIssues = options.maxIssues ?? 6;
+  const maxIssues = options.maxIssues ?? 12;
   const result: TimelineResult = {
     issuesChecked: 0,
     issuesUpdated: 0,
@@ -68,7 +72,7 @@ export async function buildTimelines(
     .select("id, title, description, last_article_at, timeline_built_at")
     .not("last_article_at", "is", null)
     .order("issue_score", { ascending: false })
-    .limit(20);
+    .limit(30);
 
   if (error) throw new Error(`이슈 조회 실패: ${error.message}`);
 
@@ -196,6 +200,41 @@ async function buildTimelineForIssue(
   });
 
   const pendingMap = new Map(pending);
+
+  // 모델이 빠뜨린 시간대가 있으면 그 시간대만 다시 요청한다.
+  const covered = new Set(
+    (ai.buckets ?? [])
+      .map((bucket) => normalizeKey(bucket?.start_time, pendingMap))
+      .filter((key): key is string => key !== null),
+  );
+  const missing = pending.filter(([key]) => !covered.has(key));
+
+  if (missing.length > 0) {
+    try {
+      const retry = await askForJson<AiTimelineResponse>({
+        system: SYSTEM_PROMPT,
+        user: JSON.stringify(
+          {
+            ...payload,
+            요약할_시간대: missing.map(([key, list]) => ({
+              start_time: key,
+              시간대: kstLabel(new Date(key)),
+              기사: list.map((article) => ({
+                title: article.title,
+                publisher: article.publisher,
+              })),
+            })),
+          },
+          null,
+          2,
+        ),
+        maxTokens: 2000,
+      });
+      ai.buckets = [...(ai.buckets ?? []), ...(retry.buckets ?? [])];
+    } catch (err) {
+      console.error("빠진 시간대 재요청 실패:", err);
+    }
+  }
   const events = (ai.buckets ?? [])
     .map((bucket) => {
       const key = normalizeKey(bucket?.start_time, pendingMap);
