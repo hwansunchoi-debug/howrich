@@ -57,6 +57,7 @@ export default function NewsHome() {
     staleTime: 30_000,
   });
 
+  const MAX_VISIBLE_ISSUES = 20;
   const issues = data ?? [];
 
   // 화면이 데이터를 받아온 시각이 아니라, 서버가 순위를 계산한 시각을 보여준다.
@@ -66,8 +67,12 @@ export default function NewsHome() {
       !latest || issue.updated_at > latest ? issue.updated_at : latest,
     null,
   );
+  // 화면에는 팔로우한 이슈까지 합쳐 최대 20개만 보여준다.
   const followedSet = new Set(followedIds);
-  const rest = issues.filter((issue) => !followedSet.has(issue.id));
+  const remainingSlots = Math.max(0, MAX_VISIBLE_ISSUES - followedIssues.length);
+  const rest = issues
+    .filter((issue) => !followedSet.has(issue.id))
+    .slice(0, remainingSlots);
 
   return (
     <div className="min-h-screen bg-background">
