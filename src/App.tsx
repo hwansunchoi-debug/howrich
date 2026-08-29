@@ -14,6 +14,8 @@ import ExpenseDetails from "./pages/ExpenseDetails";
 import BalanceDetails from "./pages/BalanceDetails";
 import CategoryManagement from "./pages/CategoryManagement";
 import InitialSetupPage from "./pages/InitialSetupPage";
+import NewsHome from "./pages/news/NewsHome";
+import NewsIssueDetail from "./pages/news/NewsIssueDetail";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            {/* 실시간 뉴스 이슈 (로그인 없이 열람 가능) */}
+            <Route path="/news" element={<NewsHome />} />
+            <Route path="/news/issue/:issueId" element={<NewsIssueDetail />} />
             <Route 
               path="/" 
               element={

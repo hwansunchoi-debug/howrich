@@ -1,0 +1,109 @@
+import Anthropic from "npm:@anthropic-ai/sdk@0.122.0";
+
+const DEFAULT_MODEL = "claude-opus-5";
+const DEFAULT_EFFORT = "low";
+
+/**
+ * 뉴스 분류/요약은 짧은 입력과 짧은 출력을 반복하는 작업이라
+ * 기본 effort 를 low 로 두고, 품질을 더 올리고 싶으면
+ * NEWS_AI_EFFORT=medium|high 로 바꾸면 된다.
+ */
+function effort(): "low" | "medium" | "high" | "xhigh" | "max" {
+  const value = (Deno.env.get("NEWS_AI_EFFORT") ?? DEFAULT_EFFORT).toLowerCase();
+  const allowed = ["low", "medium", "high", "xhigh", "max"] as const;
+  return (allowed as readonly string[]).includes(value)
+    ? (value as "low" | "medium" | "high" | "xhigh" | "max")
+    : DEFAULT_EFFORT;
+}
+
+function model(): string {
+  return Deno.env.get("NEWS_AI_MODEL") ?? DEFAULT_MODEL;
+}
+
+export function hasAnthropicKey(): boolean {
+  return Boolean(Deno.env.get("ANTHROPIC_API_KEY"));
+}
+
+function client(): Anthropic {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    throw new Error(
+      "ANTHROPIC_API_KEY 가 설정되어 있지 않습니다. " +
+        "supabase secrets set ANTHROPIC_API_KEY=... 로 등록해 주세요.",
+    );
+  }
+  return new Anthropic({ apiKey });
+}
+
+/** 응답 텍스트에서 JSON 부분만 추출한다. (```json 코드펜스 등 방어) */
+export function extractJson<T>(text: string): T {
+  let body = text.trim();
+
+  const fence = body.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) body = fence[1].trim();
+
+  if (!body.startsWith("{") && !body.startsWith("[")) {
+    const objStart = body.indexOf("{");
+    const arrStart = body.indexOf("[");
+    const start = objStart === -1
+      ? arrStart
+      : arrStart === -1
+      ? objStart
+      : Math.min(objStart, arrStart);
+    if (start === -1) throw new Error(`JSON 응답을 찾을 수 없습니다: ${text.slice(0, 200)}`);
+    const endChar = body[start] === "{" ? "}" : "]";
+    const end = body.lastIndexOf(endChar);
+    body = body.slice(start, end + 1);
+  }
+
+  return JSON.parse(body) as T;
+}
+
+interface AskOptions {
+  system: string;
+  user: string;
+  maxTokens?: number;
+}
+
+/** Claude 에 질문하고 JSON 으로 파싱된 결과를 돌려준다. (일시적 오류는 1회 재시도) */
+export async function askForJson<T>({
+  system,
+  user,
+  maxTokens = 8000,
+}: AskOptions): Promise<T> {
+  const anthropic = client();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await anthropic.messages.create({
+        model: model(),
+        max_tokens: maxTokens,
+        output_config: { effort: effort() },
+        system,
+        messages: [{ role: "user", content: user }],
+      });
+
+      if (response.stop_reason === "refusal") {
+        throw new Error("모델이 응답을 거부했습니다.");
+      }
+
+      const text = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+
+      return extractJson<T>(text);
+    } catch (error) {
+      lastError = error;
+      const retryable = error instanceof Anthropic.RateLimitError ||
+        (error instanceof Anthropic.APIError && error.status !== undefined &&
+          error.status >= 500) ||
+        error instanceof Anthropic.APIConnectionError;
+      if (!retryable || attempt === 1) break;
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}

@@ -1,5 +1,11 @@
 # Welcome to your Lovable project
 
+## 이 저장소의 서비스
+
+- **우리 가계부** (`/`) - 부부가 함께 쓰는 가계부. 로그인 필요.
+- **지금 대한민국** (`/news`) - 대한민국 실시간 뉴스 이슈 타임라인. 로그인 없이 열람.
+  설정과 동작 방식은 [`docs/news-service.md`](docs/news-service.md) 참고.
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/c0a4fb86-f8d0-472d-bbde-6e2d97cc99e3
