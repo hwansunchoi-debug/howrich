@@ -151,7 +151,11 @@ export default function NewsHome() {
 
         <div className="mt-8 space-y-2 text-center text-xs text-muted-foreground">
           <p>기사 제목을 누르면 해당 언론사 원문으로 이동합니다.</p>
-          <p>
+          <p className="flex items-center justify-center gap-3">
+            <Link to="/score" className="underline hover:text-foreground">
+              이슈 점수 설명
+            </Link>
+            <span aria-hidden>·</span>
             <Link to="/run" className="underline hover:text-foreground">
               AI 분석 실행
             </Link>

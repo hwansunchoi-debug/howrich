@@ -57,6 +57,14 @@ export async function fetchPipelineStatus(): Promise<PipelineStatus> {
   };
 }
 
+export interface AiUsage {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
+  costUsd: number;
+}
+
 export interface RunResult {
   ok: boolean;
   errors?: string[];
@@ -65,7 +73,40 @@ export interface RunResult {
     cluster?: { processed?: number; assigned?: number; created?: number; skipped?: number };
     timeline?: { issuesUpdated?: number; eventsWritten?: number };
   };
+  usage?: AiUsage;
   elapsedMs?: number;
+}
+
+export interface UsageSummary {
+  monthInputTokens: number;
+  monthOutputTokens: number;
+  monthCostUsd: number;
+  dayInputTokens: number;
+  dayOutputTokens: number;
+  dayCostUsd: number;
+  lastRunAt: string | null;
+}
+
+/** 오늘과 이번 달 AI 사용량 */
+export async function fetchUsageSummary(): Promise<UsageSummary | null> {
+  const { data, error } = await supabase
+    .from("ai_usage_summary")
+    .select("*")
+    .maybeSingle();
+
+  // 아직 기록 테이블이 없는 경우에도 화면은 정상 동작해야 한다.
+  if (error || !data) return null;
+
+  const row = data as Record<string, number | string | null>;
+  return {
+    monthInputTokens: Number(row.month_input_tokens ?? 0),
+    monthOutputTokens: Number(row.month_output_tokens ?? 0),
+    monthCostUsd: Number(row.month_cost_usd ?? 0),
+    dayInputTokens: Number(row.day_input_tokens ?? 0),
+    dayOutputTokens: Number(row.day_output_tokens ?? 0),
+    dayCostUsd: Number(row.day_cost_usd ?? 0),
+    lastRunAt: (row.last_run_at as string | null) ?? null,
+  };
 }
 
 /**

@@ -76,14 +76,66 @@ interface AskOptions {
   maxTokens?: number;
 }
 
-/** Claude 에 질문하고 JSON 으로 파싱된 결과를 돌려준다. (일시적 오류는 1회 재시도) */
+export interface Usage {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface AskResult<T> {
+  value: T;
+  usage: Usage;
+}
+
+/**
+ * 100만 토큰당 요금(달러). 모델을 바꿀 때 함께 고친다.
+ * 출처: Anthropic 공개 가격표.
+ */
+const PRICING: Record<string, { input: number; output: number }> = {
+  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-5": { input: 2, output: 10 },
+  "claude-opus-5": { input: 5, output: 25 },
+};
+
+/** 사용량을 달러로 환산한다. 모르는 모델이면 0 을 돌려준다. */
+export function estimateCostUsd(modelId: string, usage: Usage): number {
+  const key = Object.keys(PRICING).find((name) => modelId.startsWith(name));
+  if (!key) return 0;
+  const price = PRICING[key];
+  return (
+    (usage.inputTokens / 1_000_000) * price.input +
+    (usage.outputTokens / 1_000_000) * price.output
+  );
+}
+
+export function currentModel(): string {
+  return model();
+}
+
+export function emptyUsage(): Usage {
+  return { calls: 0, inputTokens: 0, outputTokens: 0 };
+}
+
+export function addUsage(total: Usage, next: Usage): Usage {
+  return {
+    calls: total.calls + next.calls,
+    inputTokens: total.inputTokens + next.inputTokens,
+    outputTokens: total.outputTokens + next.outputTokens,
+  };
+}
+
+/**
+ * Claude 에 질문하고 JSON 으로 파싱된 결과를 돌려준다. (일시적 오류는 1회 재시도)
+ * 요금 확인을 위해 사용한 토큰 수도 함께 돌려준다.
+ */
 export async function askForJson<T>({
   system,
   user,
   maxTokens = 8000,
-}: AskOptions): Promise<T> {
+}: AskOptions): Promise<AskResult<T>> {
   const anthropic = client();
   let lastError: unknown;
+  const usage: Usage = emptyUsage();
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -96,6 +148,10 @@ export async function askForJson<T>({
         messages: [{ role: "user", content: user }],
       });
 
+      usage.calls += 1;
+      usage.inputTokens += response.usage.input_tokens ?? 0;
+      usage.outputTokens += response.usage.output_tokens ?? 0;
+
       if (response.stop_reason === "refusal") {
         throw new Error("모델이 응답을 거부했습니다.");
       }
@@ -105,7 +161,7 @@ export async function askForJson<T>({
         .map((block) => block.text)
         .join("\n");
 
-      return extractJson<T>(text);
+      return { value: extractJson<T>(text), usage };
     } catch (error) {
       lastError = error;
       const retryable = error instanceof Anthropic.RateLimitError ||
