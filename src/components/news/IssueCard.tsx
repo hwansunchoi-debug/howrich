@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { TrendBadge } from "./TrendBadge";
 import { FollowButton } from "./FollowButton";
 import { formatDateTime } from "@/lib/newsTime";
@@ -11,14 +12,30 @@ interface IssueCardProps {
   rank?: number;
   followed: boolean;
   onToggleFollow: () => void;
+  /** 주면 이동 대신 이 함수를 부른다. (넓은 화면의 좌우 배치용) */
+  onSelect?: () => void;
+  selected?: boolean;
+  /** 좁은 칸에 놓일 때 설명과 일부 지표를 줄인다. */
+  compact?: boolean;
 }
 
-export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardProps) {
-  return (
-    <Link
-      to={`/issue/${issue.id}`}
-      className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40 active:bg-muted/60 sm:gap-4 sm:p-5"
-    >
+export function IssueCard({
+  issue,
+  rank,
+  followed,
+  onToggleFollow,
+  onSelect,
+  selected = false,
+  compact = false,
+}: IssueCardProps) {
+  const className = cn(
+    "group flex w-full items-start gap-3 rounded-xl border bg-card text-left transition-colors hover:border-primary/40 hover:bg-muted/40 active:bg-muted/60",
+    compact ? "p-3" : "p-4 sm:gap-4 sm:p-5",
+    selected ? "border-primary bg-primary/5" : "border-border",
+  );
+
+  const body = (
+    <>
       {rank !== undefined && (
         <span
           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-sm font-bold tabular-nums ${
@@ -34,7 +51,12 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
-          <h2 className="min-w-0 flex-1 text-base font-semibold leading-snug text-foreground sm:text-lg">
+            <h2
+            className={cn(
+              "min-w-0 flex-1 font-semibold leading-snug text-foreground",
+              compact ? "text-sm" : "text-base sm:text-lg",
+            )}
+          >
             <span className="mr-1.5" aria-hidden>
               {issueEmoji(issue)}
             </span>
@@ -43,7 +65,7 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
           <TrendBadge trend={issue.trend} className="mt-0.5" />
         </div>
 
-        {issue.description && (
+        {issue.description && !compact && (
           <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
             {issue.description}
           </p>
@@ -58,13 +80,15 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
             </span>
           </span>
 
-          <span className="inline-flex items-center gap-1" title="최근 1시간 안에 들어온 기사 수">
-            <span aria-hidden>⚡</span>
-            최근 1시간{" "}
-            <span className="font-medium tabular-nums text-foreground/80">
-              {issue.last_hour_count}건
+          {!compact && (
+            <span className="inline-flex items-center gap-1" title="최근 1시간 안에 들어온 기사 수">
+              <span aria-hidden>⚡</span>
+              최근 1시간{" "}
+              <span className="font-medium tabular-nums text-foreground/80">
+                {issue.last_hour_count}건
+              </span>
             </span>
-          </span>
+          )}
 
           <span className="inline-flex items-center gap-1" title="가장 최근 기사의 보도 시각">
             <span aria-hidden>🕒</span>
@@ -88,6 +112,25 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
         <FollowButton followed={followed} onToggle={onToggleFollow} />
         <ChevronRight className="h-4 w-4 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5" />
       </div>
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={selected ? "true" : undefined}
+        className={className}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <Link to={`/issue/${issue.id}`} className={className}>
+      {body}
     </Link>
   );
 }

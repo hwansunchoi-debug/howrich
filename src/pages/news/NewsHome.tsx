@@ -1,9 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircle, RefreshCw, Star } from "lucide-react";
 import { IssueCard } from "@/components/news/IssueCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  IssuePreviewPanel,
+  SectionArticlesPanel,
+} from "@/components/news/IssuePreviewPanel";
 import { useFollowedIssues } from "@/hooks/useFollowedIssues";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { fetchIssuesByIds, fetchTopIssues } from "@/services/newsService";
 import { formatFullDateTime } from "@/lib/newsTime";
 
@@ -11,6 +17,27 @@ const REFRESH_INTERVAL_MS = 60_000;
 
 export default function NewsHome() {
   const { followedIds, toggleFollow, isFollowed } = useFollowedIssues();
+  const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // 넓은 화면에서는 이슈와 시간대를 주소에 남겨, 뒤로 가기와 공유가 되게 한다.
+  const selectedIssueId = isMobile ? null : searchParams.get("issue");
+  const selectedSection = isMobile ? null : searchParams.get("t");
+
+  const selectIssue = (issueId: string) => {
+    setSearchParams(
+      issueId === selectedIssueId ? {} : { issue: issueId },
+      { replace: false },
+    );
+  };
+
+  const selectSection = (startTime: string | null) => {
+    if (!selectedIssueId) return;
+    setSearchParams(
+      startTime ? { issue: selectedIssueId, t: startTime } : { issue: selectedIssueId },
+      { replace: true },
+    );
+  };
 
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } =
     useQuery({
@@ -30,6 +57,14 @@ export default function NewsHome() {
   });
 
   const issues = data ?? [];
+
+  // 화면이 데이터를 받아온 시각이 아니라, 서버가 순위를 계산한 시각을 보여준다.
+  // 점수는 기사를 수집할 때마다(15분 간격) 한꺼번에 다시 계산된다.
+  const rankedAt = issues.reduce<string | null>(
+    (latest, issue) =>
+      !latest || issue.updated_at > latest ? issue.updated_at : latest,
+    null,
+  );
   const followedSet = new Set(followedIds);
   const rest = issues.filter((issue) => !followedSet.has(issue.id));
 
@@ -43,9 +78,12 @@ export default function NewsHome() {
                 지금 대한민국
               </h1>
             </Link>
-            <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
-              {dataUpdatedAt
-                ? `${formatFullDateTime(new Date(dataUpdatedAt))} 기준`
+            <p
+              className="mt-0.5 text-xs tabular-nums text-muted-foreground"
+              title="이슈 순위를 계산한 시각입니다. 기사를 수집할 때마다(15분 간격) 다시 계산합니다."
+            >
+              {rankedAt
+                ? `${formatFullDateTime(rankedAt)} 순위 기준`
                 : "실시간 뉴스 이슈"}
             </p>
           </div>
@@ -61,12 +99,24 @@ export default function NewsHome() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-2xl px-4 py-5">
+      <main
+        className={cn(
+          "mx-auto px-4 py-5 transition-[max-width] duration-300",
+          selectedIssueId ? "max-w-[1400px]" : "max-w-2xl",
+        )}
+      >
         <p className="mb-4 text-sm text-muted-foreground">
           여러 언론사의 기사를 모아 같은 사건끼리 묶고, 지금 가장 크게 번지고 있는
           순서로 보여줍니다.
         </p>
 
+        <div className="flex gap-5">
+          <div
+            className={cn(
+              "min-w-0 transition-[width] duration-300",
+              selectedIssueId ? "w-[340px] shrink-0" : "w-full",
+            )}
+          >
         {followedIssues.length > 0 && (
           <section className="mb-7">
             <h2 className="mb-2.5 flex items-center gap-1.5 text-sm font-semibold text-foreground">
@@ -80,6 +130,9 @@ export default function NewsHome() {
                     issue={issue}
                     followed
                     onToggleFollow={() => toggleFollow(issue.id)}
+                    onSelect={isMobile ? undefined : () => selectIssue(issue.id)}
+                    selected={selectedIssueId === issue.id}
+                    compact={Boolean(selectedIssueId)}
                   />
                 </li>
               ))}
@@ -142,12 +195,39 @@ export default function NewsHome() {
                     rank={issues.indexOf(issue) + 1}
                     followed={isFollowed(issue.id)}
                     onToggleFollow={() => toggleFollow(issue.id)}
+                    onSelect={isMobile ? undefined : () => selectIssue(issue.id)}
+                    selected={selectedIssueId === issue.id}
+                    compact={Boolean(selectedIssueId)}
                   />
                 </li>
               ))}
             </ol>
           </section>
         )}
+
+          </div>
+
+          {selectedIssueId && (
+            <div className="min-w-0 flex-1">
+              <IssuePreviewPanel
+                issueId={selectedIssueId}
+                selectedSection={selectedSection}
+                onSelectSection={selectSection}
+                followed={isFollowed(selectedIssueId)}
+                onToggleFollow={() => toggleFollow(selectedIssueId)}
+              />
+            </div>
+          )}
+
+          {selectedIssueId && selectedSection && (
+            <div className="hidden w-[380px] shrink-0 xl:block">
+              <SectionArticlesPanel
+                issueId={selectedIssueId}
+                startTime={selectedSection}
+              />
+            </div>
+          )}
+        </div>
 
         <div className="mt-8 space-y-2 text-center text-xs text-muted-foreground">
           <p>기사 제목을 누르면 해당 언론사 원문으로 이동합니다.</p>
