@@ -5,6 +5,9 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // GitHub Pages 는 저장소 이름이 경로에 붙는다(/howrich/).
+  // Lovable 처럼 루트에서 서비스하는 곳에서는 이 값을 비워 둔다.
+  base: process.env.VITE_BASE_PATH ?? "/",
   server: {
     host: "::",
     port: 8080,

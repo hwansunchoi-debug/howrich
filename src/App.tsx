@@ -9,7 +9,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<NewsHome />} />
         <Route path="/issue/:issueId" element={<NewsIssueDetail />} />
