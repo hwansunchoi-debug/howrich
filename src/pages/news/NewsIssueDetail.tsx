@@ -235,7 +235,7 @@ export default function NewsIssueDetail() {
                       <>
                         <p className="text-sm font-semibold text-foreground">
                           {formatHour(selected.startTime)} · 기사{" "}
-                          {selected.articles.length}건
+                          {selected.articleCount}건
                         </p>
                         {selected.summary && (
                           <p className="mt-1.5 rounded-lg bg-muted/60 p-3 text-sm leading-relaxed text-foreground/90">
@@ -243,10 +243,18 @@ export default function NewsIssueDetail() {
                           </p>
                         )}
                         <div className="mt-3 max-h-[calc(100vh-20rem)] overflow-y-auto">
-                          <ArticleList
-                            articles={selected.articles}
-                            firstArticleId={data.firstArticle?.id ?? null}
-                          />
+                          {selected.articles.length > 0 ? (
+                            <ArticleList
+                              articles={selected.articles}
+                              firstArticleId={data.firstArticle?.id ?? null}
+                            />
+                          ) : (
+                            <p className="py-6 text-center text-sm text-muted-foreground">
+                              이 시간대의 기사 목록은 보관 기간이 지나 정리되었습니다.
+                              <br />
+                              요약은 그대로 남아 있습니다.
+                            </p>
+                          )}
                         </div>
                       </>
                     ) : (

@@ -82,7 +82,7 @@ export function IssueTimeline({
                   <span className="min-w-0 flex-1 text-sm leading-relaxed text-foreground/90">
                     {section.summary ?? (
                       <span className="text-muted-foreground">
-                        요약 준비 중 · 기사 {section.articles.length}건
+                        요약 준비 중 · 기사 {section.articleCount}건
                       </span>
                     )}
                   </span>
@@ -96,7 +96,7 @@ export function IssueTimeline({
                   )}
                 </div>
                 <p className="mt-1 flex items-center gap-1.5 pl-16 text-xs text-muted-foreground">
-                  기사 {section.articles.length}건
+                  기사 {section.articleCount}건
                   {hasFirst && (
                     <span className="rounded-full bg-primary/10 px-1.5 py-0.5 font-medium text-primary">
                       🚩 최초 보도
@@ -107,10 +107,17 @@ export function IssueTimeline({
 
               {variant === "inline" && isSelected && (
                 <div className="mb-2 ml-2 border-l-2 border-muted pl-3">
-                  <ArticleList
-                    articles={section.articles}
-                    firstArticleId={firstArticleId}
-                  />
+                  {section.articles.length > 0 ? (
+                    <ArticleList
+                      articles={section.articles}
+                      firstArticleId={firstArticleId}
+                    />
+                  ) : (
+                    <p className="px-2 py-2 text-xs text-muted-foreground">
+                      이 시간대의 기사 목록은 보관 기간이 지나 정리되었습니다.
+                      요약은 그대로 남아 있습니다.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
