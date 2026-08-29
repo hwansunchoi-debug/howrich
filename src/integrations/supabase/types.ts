@@ -100,6 +100,7 @@ export type Database = {
         Row: {
           id: string;
           title: string;
+          emoji: string | null;
           description: string | null;
           issue_score: number;
           article_count: number;
@@ -115,6 +116,7 @@ export type Database = {
         Insert: {
           id?: string;
           title: string;
+          emoji?: string | null;
           description?: string | null;
           issue_score?: number;
           article_count?: number;
@@ -130,6 +132,7 @@ export type Database = {
         Update: {
           id?: string;
           title?: string;
+          emoji?: string | null;
           description?: string | null;
           issue_score?: number;
           article_count?: number;

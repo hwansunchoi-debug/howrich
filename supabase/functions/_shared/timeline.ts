@@ -154,11 +154,14 @@ async function buildTimelineForIssue(
   }
 
   // 지난 26시간 안의 시간대만 새로 만들거나 다시 만든다.
+  // 다만 이슈가 처음 보도된 시간대는 오래됐더라도 요약이 없으면 만들어 둔다.
   const rebuildFrom = Date.now() - 26 * 60 * 60 * 1000;
+  const oldestKey = [...buckets.keys()].sort()[0];
   const pending = [...buckets.entries()]
     .filter(([key, list]) => {
-      if (new Date(key).getTime() < rebuildFrom) return false;
       const current = existing.get(key);
+      if (key === oldestKey && !current) return true;
+      if (new Date(key).getTime() < rebuildFrom) return false;
       return !current || current.article_count !== list.length;
     })
     .sort((a, b) => a[0].localeCompare(b[0]));

@@ -26,7 +26,12 @@ interface IssueCandidate {
 
 interface AiClusterResponse {
   assignments?: Array<{ index: number; issue_id: string }>;
-  new_issues?: Array<{ title: string; description?: string; indexes: number[] }>;
+  new_issues?: Array<{
+    title: string;
+    emoji?: string;
+    description?: string;
+    indexes: number[];
+  }>;
   skipped?: number[];
 }
 
@@ -50,6 +55,13 @@ const SYSTEM_PROMPT = `당신은 한국 뉴스 편집자다.
 - 특정 기사 제목을 그대로 베끼지 않는다.
 - 자극적인 표현이나 추측을 넣지 않는다.
 
+이모지(emoji) 규칙:
+- 이슈 성격을 한눈에 알 수 있는 이모지 한 개.
+- 예) 재난·사고 🚨, 날씨·기후 🌧️, 정치 🏛️, 선거 🗳️, 재판·수사 ⚖️,
+  경제·증시 📈, 부동산 🏠, 외교·국제 🌏, 노동·파업 ✊, 교육 🎓,
+  보건·의료 🏥, 과학·기술 🔬, 스포츠 ⚽, 문화·연예 🎬, 사건·사고 🚓
+- 목록에 없어도 더 잘 맞는 이모지가 있으면 그것을 쓴다.
+
 설명(description) 규칙:
 - 현재 상황을 설명하는 한 문장. 40자 내외.
 - 기사에서 확인되는 사실만 쓴다.
@@ -57,7 +69,7 @@ const SYSTEM_PROMPT = `당신은 한국 뉴스 편집자다.
 반드시 아래 JSON 형식만 출력한다. 다른 텍스트는 쓰지 않는다.
 {
   "assignments": [{ "index": 0, "issue_id": "기존 이슈 id" }],
-  "new_issues": [{ "title": "새 이슈 제목", "description": "한 줄 설명", "indexes": [1, 2] }],
+  "new_issues": [{ "title": "새 이슈 제목", "emoji": "🏛️", "description": "한 줄 설명", "indexes": [1, 2] }],
   "skipped": [3]
 }
 모든 기사 index 는 assignments / new_issues / skipped 중 정확히 한 곳에만 넣는다.`;
@@ -152,6 +164,7 @@ export async function clusterArticles(
       .from("issues")
       .insert({
         title: title.slice(0, 80),
+        emoji: pickEmoji(group.emoji),
         description: (group.description ?? "").trim().slice(0, 200) || null,
       })
       .select("id")
@@ -198,6 +211,19 @@ export async function clusterArticles(
     skipped: skipped + (articles.length - usedIndexes.size),
     newIssueTitles,
   };
+}
+
+/**
+ * 모델이 돌려준 이모지를 검증한다.
+ * 글자가 섞여 오거나 여러 개가 오는 경우가 있어 첫 글자만 쓰고,
+ * 이모지가 아니면 저장하지 않는다.
+ */
+function pickEmoji(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const first = [...value.trim()][0];
+  if (!first) return null;
+  // 기본 라틴 문자/숫자면 이모지가 아니다.
+  return /[\p{Extended_Pictographic}]/u.test(first) ? first : null;
 }
 
 /** 최근에 살아있는 이슈들을 후보로 가져온다. (최근 기사 제목 3개 포함) */
