@@ -185,6 +185,16 @@ jobs:
             ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
           supabase secrets set --project-ref "$PROJECT_REF" \
             NEWS_AI_MODEL="${{ inputs.ai_model }}"
+
+          # 웹 화면의 "지금 분석하기" 버튼을 쓰려면 이 열쇠가 필요하다.
+          if [ -n "${{ secrets.NEWS_ADMIN_KEY }}" ]; then
+            supabase secrets set --project-ref "$PROJECT_REF" \
+              NEWS_ADMIN_KEY="${{ secrets.NEWS_ADMIN_KEY }}"
+            echo "관리자 열쇠 등록 완료"
+          else
+            echo "NEWS_ADMIN_KEY 가 없어 건너뜁니다."
+            echo "웹 화면의 실행 버튼을 쓰려면 GitHub Secrets 에 NEWS_ADMIN_KEY 를 추가하세요."
+          fi
           echo "AI 열쇠 등록 완료 (모델: ${{ inputs.ai_model }})"
 
       - name: 4. 수집 프로그램 올리기
@@ -197,7 +207,7 @@ jobs:
           done
           echo "함수 4개 배포 완료"
 
-      - name: 5. 자동 실행 예약 (수집 15분 / AI 1시간)
+      - name: 5. 자동 실행 예약 (기사 수집 15분마다)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |

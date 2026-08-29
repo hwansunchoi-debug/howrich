@@ -1,6 +1,8 @@
 -- 자동 실행 예약
---   기사 수집 (AI 안 씀, 비용 없음)  : 15분마다
---   AI 분석 + 타임라인 생성           : 1시간마다 (매시 5분)
+--   기사 수집 + 이슈 점수 갱신 : 15분마다 (AI 를 쓰지 않아 요금이 없다)
+--
+-- AI 분류와 타임라인 요약은 요금이 발생하므로 자동으로 돌리지 않는다.
+-- 웹 화면의 "지금 분석하기" 버튼이나 GitHub Actions 로 직접 실행한다.
 --
 -- Supabase 대시보드 > SQL Editor 에서 실행한다.
 -- 아래 <여기에_서비스_역할_키_붙여넣기> 부분만 바꿔주면 된다.
@@ -42,25 +44,6 @@ select cron.schedule(
   $$
 );
 
--- 매시 5분에 AI 분석과 타임라인 생성까지 포함한 전체 과정을 실행한다.
-select cron.schedule(
-  'news-pipeline-hourly',
-  '5 * * * *',
-  $$
-  select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets
-            where name = 'news_project_url') || '/functions/v1/news-pipeline',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets
-                                     where name = 'news_service_role_key')
-    ),
-    body := '{}'::jsonb,
-    timeout_milliseconds := 300000
-  );
-  $$
-);
-
 select jobname, schedule, active from cron.job
-where jobname in ('news-collect-every-15-min', 'news-pipeline-hourly')
+where jobname like 'news-%'
 order by jobname;
