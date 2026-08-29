@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
-import { fetchPipelineStatus, runPipeline, type RunResult } from "@/services/newsService";
+import {
+  fetchPipelineStatus,
+  fetchUsageSummary,
+  runPipeline,
+  type RunResult,
+} from "@/services/newsService";
 import { formatRelative } from "@/lib/newsTime";
 
 const KEY_STORAGE = "news:admin-key";
@@ -26,6 +31,12 @@ export default function RunAnalysis() {
     refetchInterval: 60_000,
   });
 
+  const { data: usage, refetch: refetchUsage } = useQuery({
+    queryKey: ["news", "ai-usage"],
+    queryFn: fetchUsageSummary,
+    refetchInterval: 60_000,
+  });
+
   const run = useMutation({
     mutationFn: () => runPipeline(adminKey.trim()),
     onSuccess: (data) => {
@@ -36,12 +47,17 @@ export default function RunAnalysis() {
         /* 저장이 막혀 있어도 이번 실행은 정상이다 */
       }
       refetchStatus();
+      refetchUsage();
       queryClient.invalidateQueries({ queryKey: ["news", "issues"] });
     },
   });
 
   const cluster = result?.steps?.cluster;
   const timeline = result?.steps?.timeline;
+
+  // 달러를 원화로 어림잡아 보여준다. 정확한 청구액은 Anthropic 콘솔 기준이다.
+  const USD_TO_KRW = 1400;
+  const won = (usd: number) => Math.round(usd * USD_TO_KRW).toLocaleString("ko-KR");
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,6 +166,20 @@ export default function RunAnalysis() {
               <li>기존 이슈에 {cluster?.assigned ?? 0}건 추가</li>
               <li>시간대 요약 {timeline?.eventsWritten ?? 0}개 작성</li>
             </ul>
+
+            {result.usage && result.usage.calls > 0 && (
+              <div className="mt-3 rounded-lg bg-muted/50 p-3 text-xs">
+                <p className="font-medium text-foreground">이번 실행에 쓴 AI</p>
+                <p className="mt-1 text-muted-foreground">
+                  AI 호출 {result.usage.calls}회 · 입력{" "}
+                  {result.usage.inputTokens.toLocaleString("ko-KR")} 토큰 · 출력{" "}
+                  {result.usage.outputTokens.toLocaleString("ko-KR")} 토큰
+                </p>
+                <p className="mt-1 font-medium text-foreground">
+                  약 {won(result.usage.costUsd)}원 (${result.usage.costUsd.toFixed(4)})
+                </p>
+              </div>
+            )}
             {result.errors && result.errors.length > 0 && (
               <p className="mt-3 text-xs text-destructive">
                 일부 단계 실패: {result.errors.join(" / ")}
@@ -161,6 +191,40 @@ export default function RunAnalysis() {
             >
               이슈 목록 보기
             </Link>
+          </div>
+        )}
+
+        {usage && (
+          <div className="mt-6 rounded-xl border border-border bg-card p-4">
+            <p className="text-sm font-semibold text-foreground">AI 사용량</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-muted-foreground">최근 24시간</p>
+                <p className="mt-0.5 text-lg font-bold text-foreground">
+                  약 {won(usage.dayCostUsd)}원
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {(usage.dayInputTokens + usage.dayOutputTokens).toLocaleString("ko-KR")}{" "}
+                  토큰
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">이번 달</p>
+                <p className="mt-0.5 text-lg font-bold text-foreground">
+                  약 {won(usage.monthCostUsd)}원
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {(usage.monthInputTokens + usage.monthOutputTokens).toLocaleString(
+                    "ko-KR",
+                  )}{" "}
+                  토큰
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              공개된 요금표로 계산한 어림값입니다. 1달러를 {USD_TO_KRW.toLocaleString("ko-KR")}
+              원으로 환산했습니다. 실제 청구액은 Anthropic 콘솔에서 확인하세요.
+            </p>
           </div>
         )}
 

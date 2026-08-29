@@ -180,6 +180,39 @@ export type Database = {
           },
         ];
       };
+      ai_usage: {
+        Row: {
+          id: string;
+          model: string;
+          step: string;
+          calls: number;
+          input_tokens: number;
+          output_tokens: number;
+          cost_usd: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          model: string;
+          step: string;
+          calls?: number;
+          input_tokens?: number;
+          output_tokens?: number;
+          cost_usd?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          model?: string;
+          step?: string;
+          calls?: number;
+          input_tokens?: number;
+          output_tokens?: number;
+          cost_usd?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       timeline_events: {
         Row: {
           id: string;
@@ -223,6 +256,18 @@ export type Database = {
       };
     };
     Views: {
+      ai_usage_summary: {
+        Row: {
+          month_input_tokens: number;
+          month_output_tokens: number;
+          month_cost_usd: number;
+          day_input_tokens: number;
+          day_output_tokens: number;
+          day_cost_usd: number;
+          last_run_at: string | null;
+        };
+        Relationships: [];
+      };
       unclustered_articles: {
         Row: {
           id: string;

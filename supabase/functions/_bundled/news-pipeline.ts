@@ -305,6 +305,30 @@ function extractJson(text) {
   }
   return JSON.parse(body);
 }
+var PRICING = {
+  "claude-haiku-4-5": { input: 1, output: 5 },
+  "claude-sonnet-5": { input: 2, output: 10 },
+  "claude-opus-5": { input: 5, output: 25 }
+};
+function estimateCostUsd(modelId, usage) {
+  const key = Object.keys(PRICING).find((name) => modelId.startsWith(name));
+  if (!key) return 0;
+  const price = PRICING[key];
+  return usage.inputTokens / 1e6 * price.input + usage.outputTokens / 1e6 * price.output;
+}
+function currentModel() {
+  return model();
+}
+function emptyUsage() {
+  return { calls: 0, inputTokens: 0, outputTokens: 0 };
+}
+function addUsage(total, next) {
+  return {
+    calls: total.calls + next.calls,
+    inputTokens: total.inputTokens + next.inputTokens,
+    outputTokens: total.outputTokens + next.outputTokens
+  };
+}
 async function askForJson({
   system,
   user,
@@ -312,6 +336,7 @@ async function askForJson({
 }) {
   const anthropic = client();
   let lastError;
+  const usage = emptyUsage();
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const modelId = model();
@@ -322,11 +347,14 @@ async function askForJson({
         system,
         messages: [{ role: "user", content: user }]
       });
+      usage.calls += 1;
+      usage.inputTokens += response.usage.input_tokens ?? 0;
+      usage.outputTokens += response.usage.output_tokens ?? 0;
       if (response.stop_reason === "refusal") {
         throw new Error("\uBAA8\uB378\uC774 \uC751\uB2F5\uC744 \uAC70\uBD80\uD588\uC2B5\uB2C8\uB2E4.");
       }
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("\n");
-      return extractJson(text);
+      return { value: extractJson(text), usage };
     } catch (error) {
       lastError = error;
       const retryable = error instanceof Anthropic.RateLimitError || error instanceof Anthropic.APIError && error.status !== void 0 && error.status >= 500 || error instanceof Anthropic.APIConnectionError;
@@ -388,7 +416,8 @@ async function clusterArticles(supabase, options = {}) {
     assigned: 0,
     created: 0,
     skipped: 0,
-    newIssueTitles: []
+    newIssueTitles: [],
+    usage: emptyUsage()
   };
   if (articles.length === 0) return empty;
   const candidates = await loadIssueCandidates(supabase);
@@ -408,7 +437,7 @@ async function clusterArticles(supabase, options = {}) {
       summary: article.summary?.slice(0, 200) ?? null
     }))
   };
-  const ai = await askForJson({
+  const { value: ai, usage } = await askForJson({
     system: SYSTEM_PROMPT,
     user: JSON.stringify(payload, null, 2),
     maxTokens: 8e3
@@ -468,7 +497,8 @@ async function clusterArticles(supabase, options = {}) {
     assigned: links.length,
     created,
     skipped: skipped + (articles.length - usedIndexes.size),
-    newIssueTitles
+    newIssueTitles,
+    usage
   };
 }
 function pickEmoji(value) {
@@ -556,7 +586,8 @@ async function buildTimelines(supabase, options = {}) {
     issuesChecked: 0,
     issuesUpdated: 0,
     eventsWritten: 0,
-    errors: []
+    errors: [],
+    usage: emptyUsage()
   };
   const { data: issues, error } = await supabase.from("issues").select("id, title, description, last_article_at, timeline_built_at").not("last_article_at", "is", null).order("issue_score", { ascending: false }).limit(30);
   if (error) throw new Error(`\uC774\uC288 \uC870\uD68C \uC2E4\uD328: ${error.message}`);
@@ -566,9 +597,10 @@ async function buildTimelines(supabase, options = {}) {
   result.issuesChecked = targets.length;
   for (const issue of targets) {
     try {
-      const written = await buildTimelineForIssue(supabase, issue);
+      const { written, usage } = await buildTimelineForIssue(supabase, issue);
       if (written > 0) result.issuesUpdated++;
       result.eventsWritten += written;
+      result.usage = addUsage(result.usage, usage);
     } catch (err) {
       result.errors.push(
         `${issue.title}: ${err instanceof Error ? err.message : String(err)}`
@@ -584,7 +616,7 @@ async function buildTimelineForIssue(supabase, issue) {
   const articles = rows ?? [];
   if (articles.length === 0) {
     await supabase.from("issues").update({ timeline_built_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", issue.id);
-    return 0;
+    return { written: 0, usage: emptyUsage() };
   }
   const buckets = /* @__PURE__ */ new Map();
   for (const article of articles) {
@@ -609,7 +641,7 @@ async function buildTimelineForIssue(supabase, issue) {
   }).sort((a, b) => a[0].localeCompare(b[0]));
   if (pending.length === 0) {
     await supabase.from("issues").update({ timeline_built_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", issue.id);
-    return 0;
+    return { written: 0, usage: emptyUsage() };
   }
   const previous = [...existing.entries()].filter(([key]) => !pending.some(([pendingKey]) => pendingKey === key)).sort((a, b) => a[0].localeCompare(b[0])).slice(-8).map(([key, row]) => ({
     \uC2DC\uAC04\uB300: kstLabel(new Date(key)),
@@ -627,11 +659,12 @@ async function buildTimelineForIssue(supabase, issue) {
       }))
     }))
   };
-  const ai = await askForJson({
+  const { value: ai, usage: firstUsage } = await askForJson({
     system: SYSTEM_PROMPT2,
     user: JSON.stringify(payload, null, 2),
     maxTokens: 4e3
   });
+  let usage = firstUsage;
   const pendingMap = new Map(pending);
   const covered = new Set(
     (ai.buckets ?? []).map((bucket) => normalizeKey(bucket?.start_time, pendingMap)).filter((key) => key !== null)
@@ -639,7 +672,7 @@ async function buildTimelineForIssue(supabase, issue) {
   const missing = pending.filter(([key]) => !covered.has(key));
   if (missing.length > 0) {
     try {
-      const retry = await askForJson({
+      const { value: retry, usage: retryUsage } = await askForJson({
         system: SYSTEM_PROMPT2,
         user: JSON.stringify(
           {
@@ -659,6 +692,7 @@ async function buildTimelineForIssue(supabase, issue) {
         maxTokens: 2e3
       });
       ai.buckets = [...ai.buckets ?? [], ...retry.buckets ?? []];
+      usage = addUsage(usage, retryUsage);
     } catch (err) {
       console.error("\uBE60\uC9C4 \uC2DC\uAC04\uB300 \uC7AC\uC694\uCCAD \uC2E4\uD328:", err);
     }
@@ -687,7 +721,7 @@ async function buildTimelineForIssue(supabase, issue) {
     timeline_built_at: (/* @__PURE__ */ new Date()).toISOString(),
     ...description ? { description: description.slice(0, 200) } : {}
   }).eq("id", issue.id);
-  return events.length;
+  return { written: events.length, usage };
 }
 function normalizeKey(value, pendingMap) {
   if (typeof value !== "string") return null;
@@ -707,6 +741,19 @@ function isAllowed(req) {
   const provided = req.headers.get("x-admin-key") ?? "";
   return Boolean(adminKey) && provided === adminKey;
 }
+async function recordUsage(supabase, step, usage) {
+  if (usage.calls === 0) return;
+  const model2 = currentModel();
+  const { error } = await supabase.from("ai_usage").insert({
+    model: model2,
+    step,
+    calls: usage.calls,
+    input_tokens: usage.inputTokens,
+    output_tokens: usage.outputTokens,
+    cost_usd: Number(estimateCostUsd(model2, usage).toFixed(6))
+  });
+  if (error) console.error("\uC0AC\uC6A9\uB7C9 \uAE30\uB85D \uC2E4\uD328:", error.message);
+}
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
   if (preflight) return preflight;
@@ -719,6 +766,7 @@ Deno.serve(async (req) => {
   const startedAt = Date.now();
   const steps = {};
   const errors = [];
+  let usage = emptyUsage();
   try {
     const options = await readOptions(req);
     const supabase = createServiceClient();
@@ -729,9 +777,12 @@ Deno.serve(async (req) => {
     }
     if (hasAnthropicKey()) {
       try {
-        steps.cluster = await clusterArticles(supabase, {
+        const result = await clusterArticles(supabase, {
           maxArticles: Number(options.maxArticles) || void 0
         });
+        steps.cluster = result;
+        usage = addUsage(usage, result.usage);
+        await recordUsage(supabase, "cluster", result.usage);
       } catch (error) {
         errors.push(`cluster: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -743,9 +794,12 @@ Deno.serve(async (req) => {
     else steps.score = "ok";
     if (hasAnthropicKey()) {
       try {
-        steps.timeline = await buildTimelines(supabase, {
+        const result = await buildTimelines(supabase, {
           maxIssues: Number(options.maxIssues) || void 0
         });
+        steps.timeline = result;
+        usage = addUsage(usage, result.usage);
+        await recordUsage(supabase, "timeline", result.usage);
       } catch (error) {
         errors.push(`timeline: ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -761,7 +815,12 @@ Deno.serve(async (req) => {
       ok: errors.length === 0,
       elapsedMs: Date.now() - startedAt,
       steps,
-      errors
+      errors,
+      usage: {
+        ...usage,
+        model: currentModel(),
+        costUsd: Number(estimateCostUsd(currentModel(), usage).toFixed(6))
+      }
     });
   } catch (error) {
     console.error("news-pipeline \uC2E4\uD328:", error);

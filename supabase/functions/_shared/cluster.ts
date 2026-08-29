@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "./supabaseClient.ts";
-import { askForJson } from "./anthropic.ts";
+import { addUsage, askForJson, emptyUsage, type Usage } from "./anthropic.ts";
 
 export interface ClusterResult {
   processed: number;
@@ -7,6 +7,7 @@ export interface ClusterResult {
   created: number;
   skipped: number;
   newIssueTitles: string[];
+  usage: Usage;
 }
 
 interface ArticleRow {
@@ -98,6 +99,7 @@ export async function clusterArticles(
     created: 0,
     skipped: 0,
     newIssueTitles: [],
+    usage: emptyUsage(),
   };
   if (articles.length === 0) return empty;
 
@@ -120,7 +122,7 @@ export async function clusterArticles(
     })),
   };
 
-  const ai = await askForJson<AiClusterResponse>({
+  const { value: ai, usage } = await askForJson<AiClusterResponse>({
     system: SYSTEM_PROMPT,
     user: JSON.stringify(payload, null, 2),
     maxTokens: 8000,
@@ -210,6 +212,7 @@ export async function clusterArticles(
     created,
     skipped: skipped + (articles.length - usedIndexes.size),
     newIssueTitles,
+    usage,
   };
 }
 

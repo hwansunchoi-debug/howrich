@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "./supabaseClient.ts";
-import { askForJson } from "./anthropic.ts";
+import { addUsage, askForJson, emptyUsage, type Usage } from "./anthropic.ts";
 import { hourBucket, kstLabel } from "./time.ts";
 
 export interface TimelineResult {
@@ -7,6 +7,7 @@ export interface TimelineResult {
   issuesUpdated: number;
   eventsWritten: number;
   errors: string[];
+  usage: Usage;
 }
 
 interface IssueRow {
@@ -65,6 +66,7 @@ export async function buildTimelines(
     issuesUpdated: 0,
     eventsWritten: 0,
     errors: [],
+    usage: emptyUsage(),
   };
 
   const { data: issues, error } = await supabase
@@ -88,9 +90,10 @@ export async function buildTimelines(
 
   for (const issue of targets) {
     try {
-      const written = await buildTimelineForIssue(supabase, issue);
+      const { written, usage } = await buildTimelineForIssue(supabase, issue);
       if (written > 0) result.issuesUpdated++;
       result.eventsWritten += written;
+      result.usage = addUsage(result.usage, usage);
     } catch (err) {
       result.errors.push(
         `${issue.title}: ${err instanceof Error ? err.message : String(err)}`,
@@ -104,7 +107,7 @@ export async function buildTimelines(
 async function buildTimelineForIssue(
   supabase: SupabaseClient,
   issue: IssueRow,
-): Promise<number> {
+): Promise<{ written: number; usage: Usage }> {
   const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
   const { data: rows, error } = await supabase
@@ -128,7 +131,7 @@ async function buildTimelineForIssue(
       .from("issues")
       .update({ timeline_built_at: new Date().toISOString() })
       .eq("id", issue.id);
-    return 0;
+    return { written: 0, usage: emptyUsage() };
   }
 
   // 1시간 단위로 묶는다.
@@ -171,7 +174,7 @@ async function buildTimelineForIssue(
       .from("issues")
       .update({ timeline_built_at: new Date().toISOString() })
       .eq("id", issue.id);
-    return 0;
+    return { written: 0, usage: emptyUsage() };
   }
 
   const previous = [...existing.entries()]
@@ -196,11 +199,12 @@ async function buildTimelineForIssue(
     })),
   };
 
-  const ai = await askForJson<AiTimelineResponse>({
+  const { value: ai, usage: firstUsage } = await askForJson<AiTimelineResponse>({
     system: SYSTEM_PROMPT,
     user: JSON.stringify(payload, null, 2),
     maxTokens: 4000,
   });
+  let usage = firstUsage;
 
   const pendingMap = new Map(pending);
 
@@ -214,7 +218,7 @@ async function buildTimelineForIssue(
 
   if (missing.length > 0) {
     try {
-      const retry = await askForJson<AiTimelineResponse>({
+      const { value: retry, usage: retryUsage } = await askForJson<AiTimelineResponse>({
         system: SYSTEM_PROMPT,
         user: JSON.stringify(
           {
@@ -234,6 +238,7 @@ async function buildTimelineForIssue(
         maxTokens: 2000,
       });
       ai.buckets = [...(ai.buckets ?? []), ...(retry.buckets ?? [])];
+      usage = addUsage(usage, retryUsage);
     } catch (err) {
       console.error("빠진 시간대 재요청 실패:", err);
     }
@@ -272,7 +277,7 @@ async function buildTimelineForIssue(
     })
     .eq("id", issue.id);
 
-  return events.length;
+  return { written: events.length, usage };
 }
 
 /** 모델이 돌려준 start_time 을 요청에 있던 키와 맞춘다. */
