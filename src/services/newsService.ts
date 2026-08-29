@@ -57,6 +57,30 @@ export async function fetchPipelineStatus(): Promise<PipelineStatus> {
   };
 }
 
+export interface NewsSource {
+  name: string;
+  status: "ok" | "error" | "pending";
+}
+
+/** 지금 기사를 받아오고 있는 언론사 목록 */
+export async function fetchNewsSources(): Promise<NewsSource[]> {
+  const { data, error } = await supabase
+    .from("news_sources")
+    .select("name, last_status, enabled")
+    .eq("enabled", true)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => {
+    const status = row.last_status as string | null;
+    return {
+      name: row.name as string,
+      status: status === "ok" ? "ok" : status === "error" ? "error" : "pending",
+    };
+  });
+}
+
 export interface AiUsage {
   calls: number;
   inputTokens: number;
