@@ -119,6 +119,7 @@ jobs:
           db.$PROJECT_REF.supabase.co|postgres|5432"
 
           found=""
+          auth_failed_host=""
           for entry in $(echo "$candidates" | tr -d ' ' | grep -v '^$'); do
             host=$(echo "$entry" | cut -d'|' -f1)
             user=$(echo "$entry" | cut -d'|' -f2)
@@ -132,14 +133,28 @@ jobs:
               found="yes"
               break
             else
-              echo "    실패: $(echo "$out" | head -2 | tr '\n' ' ')"
+              reason=$(echo "$out" | head -2 | tr '\n' ' ')
+              echo "    실패: $reason"
+              # 서버가 프로젝트를 알아봤는데 비밀번호만 틀린 경우를 기억해 둔다.
+              case "$reason" in
+                *"password authentication failed"*) auth_failed_host="$host:$port" ;;
+              esac
             fi
           done
 
           if [ -z "$found" ]; then
-            echo "::error::데이터베이스에 접속하지 못했습니다. 위의 실패 사유를 확인해 주세요."
-            echo "password authentication 이라고 나오면 SUPABASE_DB_PASSWORD 가 틀린 것이고,"
-            echo "could not translate host name 이라고 나오면 주소 형식 문제입니다."
+            if [ -n "$auth_failed_host" ]; then
+              echo "::error::비밀번호가 맞지 않습니다. 주소($auth_failed_host)는 정확합니다."
+              echo ""
+              echo "데이터베이스 비밀번호는 조회할 수 없고 새로 정하는 방법뿐입니다."
+              echo "  1) https://supabase.com/dashboard/project/$PROJECT_REF/settings/database"
+              echo "  2) Database password > Reset database password 로 새 비밀번호 생성 후 복사"
+              echo "  3) GitHub > Settings > Secrets and variables > Actions 에서"
+              echo "     SUPABASE_DB_PASSWORD 를 새 값으로 수정 (앞뒤 공백이 들어가지 않게)"
+              echo "  4) 이 워크플로를 다시 실행"
+            else
+              echo "::error::데이터베이스에 접속하지 못했습니다. 위의 실패 사유를 확인해 주세요."
+            fi
             exit 1
           fi
 
