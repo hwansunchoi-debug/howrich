@@ -24,7 +24,7 @@ export default function NewsHome() {
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-4">
           <div className="min-w-0">
-            <Link to="/news" className="block">
+            <Link to="/" className="block">
               <h1 className="truncate text-lg font-bold tracking-tight text-foreground sm:text-xl">
                 지금 대한민국
               </h1>

@@ -23,7 +23,7 @@ export default function NewsIssueDetail() {
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
           <Link
-            to="/news"
+            to="/"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
             aria-label="이슈 목록으로"
           >
@@ -53,7 +53,7 @@ export default function NewsIssueDetail() {
               <p className="mt-1 text-muted-foreground">
                 {error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요."}
               </p>
-              <Link to="/news" className="mt-3 inline-block text-primary underline">
+              <Link to="/" className="mt-3 inline-block text-primary underline">
                 이슈 목록으로 돌아가기
               </Link>
             </div>

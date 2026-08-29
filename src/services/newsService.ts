@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { hourBucketKey } from "@/lib/newsTime";
 import type {
   IssueDetail,
@@ -8,10 +7,6 @@ import type {
   TimelineEvent,
   TimelineSection,
 } from "@/types/news";
-
-// 뉴스 테이블은 자동 생성 타입(src/integrations/supabase/types.ts)에 아직 없어서
-// 타입 없는 클라이언트로 접근하고, 결과를 src/types/news.ts 의 타입으로 다룬다.
-const db = supabase as unknown as SupabaseClient;
 
 const ISSUE_COLUMNS =
   "id, title, description, issue_score, article_count, recent_article_count, last_hour_count, prev_hour_count, trend, last_article_at, created_at, updated_at";
@@ -24,7 +19,7 @@ export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
     Date.now() - ACTIVE_WINDOW_HOURS * 60 * 60 * 1000,
   ).toISOString();
 
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from("issues")
     .select(ISSUE_COLUMNS)
     .gt("article_count", 0)
@@ -38,7 +33,7 @@ export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
 
 /** 이슈 상세: 현재 상황 요약 + 시간대별 타임라인 + 시간대별 기사 */
 export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
-  const { data: issueRow, error: issueError } = await db
+  const { data: issueRow, error: issueError } = await supabase
     .from("issues")
     .select(ISSUE_COLUMNS)
     .eq("id", issueId)
@@ -49,12 +44,12 @@ export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
 
   const [{ data: eventRows, error: eventError }, { data: articleRows, error: articleError }] =
     await Promise.all([
-      db
+      supabase
         .from("timeline_events")
         .select("id, issue_id, start_time, end_time, summary, article_count")
         .eq("issue_id", issueId)
         .order("start_time", { ascending: false }),
-      db
+      supabase
         .from("articles")
         .select(
           "id, title, publisher, published_at, url, summary, issue_articles!inner(issue_id)",
@@ -68,10 +63,17 @@ export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
   if (articleError) throw new Error(articleError.message);
 
   const events = (eventRows ?? []) as TimelineEvent[];
-  const articles = (articleRows ?? []).map((row) => {
-    const { id, title, publisher, published_at, url, summary } = row as NewsArticle;
-    return { id, title, publisher, published_at, url, summary };
-  });
+  // 조인용으로 함께 내려온 issue_articles 키는 떼어낸다.
+  const articles: NewsArticle[] = (articleRows ?? []).map(
+    ({ id, title, publisher, published_at, url, summary }) => ({
+      id,
+      title,
+      publisher,
+      published_at,
+      url,
+      summary,
+    }),
+  );
 
   return {
     issue: issueRow as NewsIssue,

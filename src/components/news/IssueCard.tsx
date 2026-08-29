@@ -12,7 +12,7 @@ interface IssueCardProps {
 export function IssueCard({ issue, rank }: IssueCardProps) {
   return (
     <Link
-      to={`/news/issue/${issue.id}`}
+      to={`/issue/${issue.id}`}
       className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40 active:bg-muted/60 sm:gap-4 sm:p-5"
     >
       <span
