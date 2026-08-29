@@ -1,5 +1,18 @@
 # Welcome to your Lovable project
 
+## 지금 대한민국 - 실시간 뉴스 이슈
+
+여러 언론사의 RSS 기사를 모아 AI가 같은 사건끼리 하나의 이슈로 묶고,
+이슈별로 시간대별 한 줄 요약(타임라인)을 만들어 보여주는 서비스.
+
+- `/` 현재 주요 이슈 목록 (이슈 점수 순, 1분마다 자동 갱신)
+- `/issue/:issueId` 이슈 상세 - 현재 상황 요약 + 기사 타임라인
+
+설정·배포·동작 방식은 [`docs/news-service.md`](docs/news-service.md) 참고.
+
+> 이 저장소에 있던 가계부 앱은 제거했다. 코드는 `main` 브랜치와 이전 커밋에 남아 있고,
+> DB 테이블 삭제는 `supabase/migrations/20260829020000_drop_household_ledger.sql` 로 처리한다.
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/c0a4fb86-f8d0-472d-bbde-6e2d97cc99e3
