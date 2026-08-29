@@ -237,6 +237,11 @@ function effort() {
   const allowed = ["low", "medium", "high", "xhigh", "max"];
   return allowed.includes(value) ? value : DEFAULT_EFFORT;
 }
+function supportsEffort(modelId) {
+  return /(fable-5|mythos-5|opus-5|opus-4-8|opus-4-7|opus-4-6|sonnet-5|sonnet-4-6)/.test(
+    modelId
+  );
+}
 function model() {
   return Deno.env.get("NEWS_AI_MODEL") ?? DEFAULT_MODEL;
 }
@@ -276,10 +281,11 @@ async function askForJson({
   let lastError;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      const modelId = model();
       const response = await anthropic.messages.create({
-        model: model(),
+        model: modelId,
         max_tokens: maxTokens,
-        output_config: { effort: effort() },
+        ...supportsEffort(modelId) ? { output_config: { effort: effort() } } : {},
         system,
         messages: [{ role: "user", content: user }]
       });
@@ -328,7 +334,7 @@ var SYSTEM_PROMPT = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uD3B8\uC9D1\u
 }
 \uBAA8\uB4E0 \uAE30\uC0AC index \uB294 assignments / new_issues / skipped \uC911 \uC815\uD655\uD788 \uD55C \uACF3\uC5D0\uB9CC \uB123\uB294\uB2E4.`;
 async function clusterArticles(supabase, options = {}) {
-  const maxArticles = options.maxArticles ?? 40;
+  const maxArticles = options.maxArticles ?? 120;
   const { data: pending, error: pendingError } = await supabase.from("unclustered_articles").select("id, title, publisher, published_at, summary").order("published_at", { ascending: true }).limit(maxArticles);
   if (pendingError) {
     throw new Error(`\uBBF8\uBD84\uB958 \uAE30\uC0AC \uC870\uD68C \uC2E4\uD328: ${pendingError.message}`);
@@ -644,7 +650,7 @@ Deno.serve(async (req) => {
         errors.push(`timeline: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
-    if ((/* @__PURE__ */ new Date()).getUTCMinutes() < 5) {
+    if ((/* @__PURE__ */ new Date()).getUTCHours() === 18) {
       const { error: pruneError } = await supabase.rpc("prune_old_news", {
         retain_days: 7
       });
