@@ -143,7 +143,10 @@ export default function NewsIssueDetail() {
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   최근 1시간 {data.issue.last_hour_count}건, 직전 1시간{" "}
                   {data.issue.prev_hour_count}건. 기사 수와 증가 속도, 최신성을 합해
-                  계산합니다.
+                  계산합니다.{" "}
+                  <Link to="/score" className="underline hover:text-foreground">
+                    자세히
+                  </Link>
                 </p>
               </div>
 
