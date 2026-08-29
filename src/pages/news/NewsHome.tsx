@@ -7,6 +7,7 @@ import {
   IssuePreviewPanel,
   SectionArticlesPanel,
 } from "@/components/news/IssuePreviewPanel";
+import { SourceList } from "@/components/news/SourceList";
 import { useFollowedIssues } from "@/hooks/useFollowedIssues";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -105,10 +106,12 @@ export default function NewsHome() {
           selectedIssueId ? "max-w-[1400px]" : "max-w-2xl",
         )}
       >
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="mb-3 text-sm text-muted-foreground">
           여러 언론사의 기사를 모아 같은 사건끼리 묶고, 지금 가장 크게 번지고 있는
           순서로 보여줍니다.
         </p>
+
+        <SourceList />
 
         <div className="flex gap-5">
           <div
