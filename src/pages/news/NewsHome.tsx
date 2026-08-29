@@ -5,7 +5,7 @@ import { IssueCard } from "@/components/news/IssueCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedIssues } from "@/hooks/useFollowedIssues";
 import { fetchIssuesByIds, fetchTopIssues } from "@/services/newsService";
-import { formatRelative } from "@/lib/newsTime";
+import { formatFullDateTime } from "@/lib/newsTime";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
@@ -43,9 +43,9 @@ export default function NewsHome() {
                 지금 대한민국
               </h1>
             </Link>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
               {dataUpdatedAt
-                ? `${formatRelative(new Date(dataUpdatedAt))} 기준`
+                ? `${formatFullDateTime(new Date(dataUpdatedAt))} 기준`
                 : "실시간 뉴스 이슈"}
             </p>
           </div>
