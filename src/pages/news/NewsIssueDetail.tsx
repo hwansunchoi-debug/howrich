@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle, ArrowLeft, Clock, FileText, Flag, Newspaper } from "lucide-react";
@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedIssues } from "@/hooks/useFollowedIssues";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchIssueDetail } from "@/services/newsService";
-import { formatHour, formatRelative } from "@/lib/newsTime";
+import { formatDateTime, formatHour } from "@/lib/newsTime";
 import { issueEmoji, issueHeat } from "@/lib/issueEmoji";
 
 export default function NewsIssueDetail() {
@@ -17,6 +17,14 @@ export default function NewsIssueDetail() {
   const { toggleFollow, isFollowed } = useFollowedIssues();
   const isMobile = useIsMobile();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const timelineRef = useRef<HTMLElement>(null);
+
+  /** 특정 시간대를 열고 타임라인으로 이동한다. */
+  const jumpToSection = (startTime: string | undefined) => {
+    if (!startTime) return;
+    setSelectedKey(startTime);
+    timelineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["news", "issue", issueId],
@@ -150,63 +158,86 @@ export default function NewsIssueDetail() {
                 </p>
               </div>
 
-              {/* 요약 지표 */}
+              {/* 요약 지표 — 누르면 관련 화면으로 간다 */}
               <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {[
-                  {
-                    icon: <FileText className="h-3.5 w-3.5" />,
-                    label: "전체 기사",
-                    value: `${data.issue.article_count}건`,
-                  },
-                  {
-                    icon: <Newspaper className="h-3.5 w-3.5" />,
-                    label: "언론사",
-                    value: `${data.publisherCount}곳`,
-                  },
-                  {
-                    icon: <Clock className="h-3.5 w-3.5" />,
-                    label: "마지막 소식",
-                    value: formatRelative(data.issue.last_article_at),
-                  },
-                  {
-                    icon: <Flag className="h-3.5 w-3.5" />,
-                    label: "최초 보도",
-                    value: data.firstArticle
-                      ? formatRelative(data.firstArticle.published_at)
-                      : "-",
-                  },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="rounded-xl bg-background/70 p-3 text-center ring-1 ring-border"
-                  >
-                    <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
-                      {stat.icon}
-                      {stat.label}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">
-                      {stat.value}
-                    </p>
-                  </div>
-                ))}
+                <Link
+                  to={`/issue/${data.issue.id}/articles`}
+                  className="rounded-xl bg-background/70 p-3 text-center ring-1 ring-border transition-colors hover:bg-background hover:ring-primary/40"
+                >
+                  <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" />
+                    전체 기사
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {data.issue.article_count}건
+                  </p>
+                </Link>
+
+                <Link
+                  to={`/issue/${data.issue.id}/articles?by=publisher`}
+                  className="rounded-xl bg-background/70 p-3 text-center ring-1 ring-border transition-colors hover:bg-background hover:ring-primary/40"
+                >
+                  <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+                    <Newspaper className="h-3.5 w-3.5" />
+                    언론사
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {data.publisherCount}곳
+                  </p>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => jumpToSection(data.sections[0]?.startTime)}
+                  className="rounded-xl bg-background/70 p-3 text-center ring-1 ring-border transition-colors hover:bg-background hover:ring-primary/40"
+                >
+                  <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    마지막 소식
+                  </p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                    {formatDateTime(data.issue.last_article_at)}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    jumpToSection(
+                      data.sections[data.sections.length - 1]?.startTime,
+                    )
+                  }
+                  className="rounded-xl bg-background/70 p-3 text-center ring-1 ring-border transition-colors hover:bg-background hover:ring-primary/40"
+                >
+                  <p className="flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+                    <Flag className="h-3.5 w-3.5" />
+                    최초 보도
+                  </p>
+                  <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                    {data.firstArticle
+                      ? formatDateTime(data.firstArticle.published_at)
+                      : "-"}
+                  </p>
+                </button>
               </div>
 
               {publishers.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-1.5">
                   {publishers.map((publisher) => (
-                    <span
+                    <Link
                       key={publisher}
-                      className="rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground ring-1 ring-border"
+                      to={`/issue/${data.issue.id}/articles?by=publisher`}
+                      className="rounded-full bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground ring-1 ring-border transition-colors hover:text-foreground hover:ring-primary/40"
                     >
                       {publisher}
-                    </span>
+                    </Link>
                   ))}
                 </div>
               )}
             </section>
 
             {/* 타임라인 + 기사 */}
-            <section className="mt-7">
+            <section ref={timelineRef} className="mt-7 scroll-mt-20">
               <h2 className="mb-1 text-sm font-semibold text-foreground">
                 🕒 기사 타임라인
               </h2>

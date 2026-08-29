@@ -45,6 +45,29 @@ export function formatClock(value: string | Date): string {
   return clockFormatter.format(toDate(value));
 }
 
+/** "8월 29일 16:32" — 오늘이면 "오늘 16:32" */
+export function formatDateTime(value: string | Date | null | undefined): string {
+  if (!value) return "-";
+  const date = toDate(value);
+  const isToday = kstDateKey(date) === kstDateKey(new Date());
+  return isToday
+    ? `오늘 ${formatClock(date)}`
+    : `${formatDay(date)} ${formatClock(date)}`;
+}
+
+/** "2026년 8월 29일 16:32" — 화면 상단의 기준 시각처럼 정확히 보여줄 때 */
+export function formatFullDateTime(value: string | Date | null | undefined): string {
+  if (!value) return "-";
+  const date = toDate(value);
+  const stamp = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: KST,
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+  return `${stamp} ${formatClock(date)}`;
+}
+
 /** 오늘이면 "오후 2시", 아니면 "8월 28일 오후 2시" */
 export function formatHourWithDay(value: string | Date): string {
   const date = toDate(value);

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ChevronRight } from "lucide-react";
 import { TrendBadge } from "./TrendBadge";
 import { FollowButton } from "./FollowButton";
-import { formatRelative } from "@/lib/newsTime";
+import { formatDateTime } from "@/lib/newsTime";
 import { issueEmoji } from "@/lib/issueEmoji";
 import type { NewsIssue } from "@/types/news";
 
@@ -49,20 +49,37 @@ export function IssueCard({ issue, rank, followed, onToggleFollow }: IssueCardPr
           </p>
         )}
 
-        <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/70">
-            최근 24시간 {issue.recent_article_count}건
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1" title="이 이슈로 묶인 전체 기사 수">
+            <span aria-hidden>📰</span>
+            전체{" "}
+            <span className="font-medium tabular-nums text-foreground/80">
+              {issue.article_count}건
+            </span>
           </span>
-          <span aria-hidden>·</span>
-          <span>전체 {issue.article_count}건</span>
-          <span aria-hidden>·</span>
-          <span>{formatRelative(issue.last_article_at)} 업데이트</span>
-          <span aria-hidden>·</span>
+
+          <span className="inline-flex items-center gap-1" title="최근 1시간 안에 들어온 기사 수">
+            <span aria-hidden>⚡</span>
+            최근 1시간{" "}
+            <span className="font-medium tabular-nums text-foreground/80">
+              {issue.last_hour_count}건
+            </span>
+          </span>
+
+          <span className="inline-flex items-center gap-1" title="가장 최근 기사의 보도 시각">
+            <span aria-hidden>🕒</span>
+            <span className="tabular-nums">{formatDateTime(issue.last_article_at)}</span>
+          </span>
+
           <span
-            className="tabular-nums"
+            className="inline-flex items-center gap-1"
             title="최근 기사 수, 기사 증가 속도, 최신성으로 계산한 이슈 점수"
           >
-            이슈 점수 {issue.issue_score.toFixed(1)}
+            <span aria-hidden>🔥</span>
+            점수{" "}
+            <span className="font-medium tabular-nums text-foreground/80">
+              {issue.issue_score.toFixed(1)}
+            </span>
           </span>
         </div>
       </div>
