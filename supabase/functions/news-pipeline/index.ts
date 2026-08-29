@@ -8,9 +8,32 @@ import { clusterArticles } from "../_shared/cluster.ts";
 import { buildTimelines } from "../_shared/timeline.ts";
 import { hasAnthropicKey } from "../_shared/anthropic.ts";
 
+/**
+ * 이 함수는 AI 호출로 요금이 발생하므로 아무나 부를 수 없어야 한다.
+ * 둘 중 하나를 만족해야 실행한다.
+ *   - service_role 키로 호출 (cron, GitHub Actions)
+ *   - NEWS_ADMIN_KEY 와 일치하는 x-admin-key 헤더 (웹 화면의 실행 버튼)
+ */
+function isAllowed(req: Request): boolean {
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorization = req.headers.get("authorization") ?? "";
+  if (serviceRoleKey && authorization === `Bearer ${serviceRoleKey}`) return true;
+
+  const adminKey = Deno.env.get("NEWS_ADMIN_KEY");
+  const provided = req.headers.get("x-admin-key") ?? "";
+  return Boolean(adminKey) && provided === adminKey;
+}
+
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
   if (preflight) return preflight;
+
+  if (!isAllowed(req)) {
+    return jsonResponse(
+      { ok: false, error: "실행 권한이 없습니다. 관리자 열쇠를 확인해 주세요." },
+      403,
+    );
+  }
 
   const startedAt = Date.now();
   const steps: Record<string, unknown> = {};

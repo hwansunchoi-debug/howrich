@@ -12,7 +12,7 @@
 // supabase/functions/_shared/http.ts
 var corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
 };
 function jsonResponse(body, status = 200) {
@@ -651,9 +651,23 @@ function normalizeKey(value, pendingMap) {
 }
 
 // supabase/functions/news-pipeline/index.ts
+function isAllowed(req) {
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authorization = req.headers.get("authorization") ?? "";
+  if (serviceRoleKey && authorization === `Bearer ${serviceRoleKey}`) return true;
+  const adminKey = Deno.env.get("NEWS_ADMIN_KEY");
+  const provided = req.headers.get("x-admin-key") ?? "";
+  return Boolean(adminKey) && provided === adminKey;
+}
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req);
   if (preflight) return preflight;
+  if (!isAllowed(req)) {
+    return jsonResponse(
+      { ok: false, error: "\uC2E4\uD589 \uAD8C\uD55C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4. \uAD00\uB9AC\uC790 \uC5F4\uC1E0\uB97C \uD655\uC778\uD574 \uC8FC\uC138\uC694." },
+      403
+    );
+  }
   const startedAt = Date.now();
   const steps = {};
   const errors = [];

@@ -31,6 +31,69 @@ export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
   return (data ?? []) as NewsIssue[];
 }
 
+export interface PipelineStatus {
+  /** 아직 AI 분석을 거치지 않은 기사 수 */
+  pendingArticles: number;
+  /** 마지막으로 타임라인을 만든 시각 */
+  lastAnalyzedAt: string | null;
+}
+
+/** 화면에 "분석 대기 중" 상태를 보여주기 위한 값들 */
+export async function fetchPipelineStatus(): Promise<PipelineStatus> {
+  const [pending, latest] = await Promise.all([
+    supabase
+      .from("unclustered_articles")
+      .select("id", { count: "exact", head: true }),
+    supabase
+      .from("issues")
+      .select("timeline_built_at")
+      .not("timeline_built_at", "is", null)
+      .order("timeline_built_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (pending.error) throw new Error(pending.error.message);
+  if (latest.error) throw new Error(latest.error.message);
+
+  return {
+    pendingArticles: pending.count ?? 0,
+    lastAnalyzedAt: (latest.data?.timeline_built_at as string | null) ?? null,
+  };
+}
+
+export interface RunResult {
+  ok: boolean;
+  errors?: string[];
+  steps?: {
+    collect?: { fetched?: number; inserted?: number };
+    cluster?: { processed?: number; assigned?: number; created?: number; skipped?: number };
+    timeline?: { issuesUpdated?: number; eventsWritten?: number };
+  };
+  elapsedMs?: number;
+}
+
+/**
+ * AI 분석을 지금 실행한다. 요금이 발생하므로 관리자 열쇠가 필요하다.
+ * 열쇠는 서버(Edge Function)에서 확인한다.
+ */
+export async function runPipeline(adminKey: string): Promise<RunResult> {
+  const { data, error } = await supabase.functions.invoke<RunResult>("news-pipeline", {
+    headers: { "x-admin-key": adminKey },
+    body: { maxArticles: 200, maxIssues: 15 },
+  });
+
+  if (error) {
+    // 403 이면 열쇠가 틀린 경우다.
+    const message = error.message.includes("403") || error.message.includes("non-2xx")
+      ? "실행에 실패했습니다. 관리자 열쇠가 맞는지 확인해 주세요."
+      : error.message;
+    throw new Error(message);
+  }
+  if (!data) throw new Error("응답이 비어 있습니다.");
+  return data;
+}
+
 /**
  * 팔로우한 이슈를 id 로 가져온다.
  * 순위에서 밀리거나 48시간이 지난 이슈도 계속 추적할 수 있어야 하므로
