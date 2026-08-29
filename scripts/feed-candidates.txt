@@ -1,0 +1,24 @@
+# 이름|주소  (# 로 시작하는 줄은 무시)
+# --- 현재 실패 중인 곳의 대체 주소 후보 ---
+YTN|https://www.ytn.co.kr/rss/Y_rss_news.xml
+YTN|https://www.ytn.co.kr/_comm/rss_ytn.php?mcd=0100
+YTN|https://rss.ytn.co.kr/news.xml
+YTN|https://www.ytn.co.kr/rss/rss_news.xml
+노컷뉴스|https://rss.nocutnews.co.kr/nocutnews.xml
+노컷뉴스|https://www.nocutnews.co.kr/RSS/nocutnews.xml
+노컷뉴스|https://rss.nocutnews.co.kr/NocutNews.xml
+한겨레|https://www.hani.co.kr/rss/
+한겨레|https://www.hani.co.kr/rss/newsrss/
+한겨레|https://www.hani.co.kr/rss/politics/
+한겨레|https://www.hani.co.kr/rss/society/
+# --- 새로 추가할 후보 ---
+MBC|https://imnews.imbc.com/rss/news/news_00.xml
+KBS|http://world.kbs.co.kr/rss/rss_news.htm?lang=k
+중앙일보|https://rss.joins.com/joins_news_list.xml
+조선일보|https://www.chosun.com/arc/outboundfeeds/rss/?outputType=xml
+국민일보|http://rss.kmib.co.kr/data/kmibRssAll.xml
+오마이뉴스|http://rss.ohmynews.com/rss/ohmynews.xml
+서울신문|https://www.seoul.co.kr/xml/rss/rss_society.xml
+세계일보|https://www.segye.com/Articles/RSSList/segye_recent.xml
+이데일리|https://www.edaily.co.kr/rss/edaily_news.xml
+아시아경제|https://www.asiae.co.kr/rss/all.htm

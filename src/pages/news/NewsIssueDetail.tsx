@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Clock, FileText, Newspaper } from "lucide-react";
+import { AlertCircle, ArrowLeft, Clock, FileText, Flame, Newspaper } from "lucide-react";
 import { IssueTimeline } from "@/components/news/IssueTimeline";
 import { TrendBadge } from "@/components/news/TrendBadge";
+import { FollowButton } from "@/components/news/FollowButton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useFollowedIssues } from "@/hooks/useFollowedIssues";
 import { fetchIssueDetail } from "@/services/newsService";
 import { formatRelative } from "@/lib/newsTime";
 
 export default function NewsIssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
+  const { toggleFollow, isFollowed } = useFollowedIssues();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["news", "issue", issueId],
@@ -69,6 +72,14 @@ export default function NewsIssueDetail() {
               <TrendBadge trend={data.issue.trend} className="mt-1.5" />
             </div>
 
+            <div className="mt-3">
+              <FollowButton
+                followed={isFollowed(data.issue.id)}
+                onToggle={() => toggleFollow(data.issue.id)}
+                withLabel
+              />
+            </div>
+
             {data.issue.description && (
               <p className="mt-3 rounded-xl bg-muted/60 p-4 text-sm leading-relaxed text-foreground/90">
                 {data.issue.description}
@@ -78,7 +89,8 @@ export default function NewsIssueDetail() {
             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <FileText className="h-3.5 w-3.5" />
-                기사 {data.issue.article_count}건
+                전체 {data.issue.article_count}건 · 최근 24시간{" "}
+                {data.issue.recent_article_count}건
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Newspaper className="h-3.5 w-3.5" />
@@ -88,6 +100,18 @@ export default function NewsIssueDetail() {
                 <Clock className="h-3.5 w-3.5" />
                 {formatRelative(data.issue.last_article_at)} 업데이트
               </span>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                <Flame className="h-3.5 w-3.5 text-primary" />
+                이슈 점수 {data.issue.issue_score.toFixed(1)}
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                최근 1시간 {data.issue.last_hour_count}건, 직전 1시간{" "}
+                {data.issue.prev_hour_count}건. 기사 수와 증가 속도, 최신성을 합해
+                계산합니다.
+              </p>
             </div>
 
             <section className="mt-8">

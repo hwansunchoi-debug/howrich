@@ -10,7 +10,13 @@ Deno.serve(async (req) => {
   try {
     const supabase = createServiceClient();
     const result = await collectArticles(supabase);
-    return jsonResponse({ ok: true, ...result });
+
+    // 점수 계산은 SQL 이라 요금이 들지 않는다.
+    // 15분마다 다시 계산해 최신성 기준 순위가 자주 갱신되도록 한다.
+    const { error } = await supabase.rpc("refresh_issue_scores");
+    if (error) throw new Error(`점수 계산 실패: ${error.message}`);
+
+    return jsonResponse({ ok: true, ...result, scoreRefreshed: true });
   } catch (error) {
     console.error("news-collect 실패:", error);
     return jsonResponse(
