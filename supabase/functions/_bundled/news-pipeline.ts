@@ -118,17 +118,25 @@ function parseFeed(xml) {
   }
   return items;
 }
-async function fetchFeed(url, timeoutMs = 15e3) {
+async function fetchFeed(url, cache = {}, timeoutMs = 15e3) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "korea-news-issue-bot/1.0 (+RSS reader)",
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"
-      }
-    });
+    const headers = {
+      "User-Agent": "korea-news-issue-bot/1.0 (+RSS reader)",
+      "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"
+    };
+    if (cache.etag) headers["If-None-Match"] = cache.etag;
+    if (cache.lastModified) headers["If-Modified-Since"] = cache.lastModified;
+    const response = await fetch(url, { signal: controller.signal, headers });
+    if (response.status === 304) {
+      return {
+        notModified: true,
+        items: [],
+        etag: cache.etag ?? null,
+        lastModified: cache.lastModified ?? null
+      };
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -151,7 +159,12 @@ async function fetchFeed(url, timeoutMs = 15e3) {
         }
       }
     }
-    return parseFeed(xml);
+    return {
+      notModified: false,
+      items: parseFeed(xml),
+      etag: response.headers.get("etag"),
+      lastModified: response.headers.get("last-modified")
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -160,7 +173,7 @@ async function fetchFeed(url, timeoutMs = 15e3) {
 // supabase/functions/_shared/collect.ts
 var MAX_AGE_HOURS = 48;
 async function collectArticles(supabase) {
-  const { data: sources, error } = await supabase.from("news_sources").select("id, name, feed_url").eq("enabled", true).eq("source_type", "rss");
+  const { data: sources, error } = await supabase.from("news_sources").select("id, name, feed_url, last_etag, last_modified").eq("enabled", true).eq("source_type", "rss");
   if (error) throw new Error(`news_sources \uC870\uD68C \uC2E4\uD328: ${error.message}`);
   const rows = [];
   const seenUrls = /* @__PURE__ */ new Set();
@@ -171,9 +184,26 @@ async function collectArticles(supabase) {
   await Promise.all(
     (sources ?? []).map(async (source) => {
       try {
-        const items = await fetchFeed(source.feed_url);
+        const feed = await fetchFeed(source.feed_url, {
+          etag: source.last_etag,
+          lastModified: source.last_modified
+        });
+        if (feed.notModified) {
+          results.push({
+            name: source.name,
+            feed_url: source.feed_url,
+            status: "unchanged",
+            items: 0
+          });
+          await supabase.from("news_sources").update({
+            last_fetched_at: (/* @__PURE__ */ new Date()).toISOString(),
+            last_status: "ok",
+            last_error: null
+          }).eq("id", source.id);
+          return;
+        }
         let usable = 0;
-        for (const item of items) {
+        for (const item of feed.items) {
           const publishedAt = item.publishedAt ?? /* @__PURE__ */ new Date();
           const time = publishedAt.getTime();
           if (time < oldestAllowed || time > newestAllowed) continue;
@@ -198,7 +228,9 @@ async function collectArticles(supabase) {
         await supabase.from("news_sources").update({
           last_fetched_at: (/* @__PURE__ */ new Date()).toISOString(),
           last_status: "ok",
-          last_error: null
+          last_error: null,
+          last_etag: feed.etag,
+          last_modified: feed.lastModified
         }).eq("id", source.id);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -4,7 +4,7 @@ import { fetchFeed } from "./rss.ts";
 export interface SourceResult {
   name: string;
   feed_url: string;
-  status: "ok" | "error";
+  status: "ok" | "error" | "unchanged";
   items?: number;
   error?: string;
 }
@@ -19,6 +19,8 @@ interface NewsSourceRow {
   id: string;
   name: string;
   feed_url: string;
+  last_etag: string | null;
+  last_modified: string | null;
 }
 
 const MAX_AGE_HOURS = 48;
@@ -32,7 +34,7 @@ export async function collectArticles(
 ): Promise<CollectResult> {
   const { data: sources, error } = await supabase
     .from("news_sources")
-    .select("id, name, feed_url")
+    .select("id, name, feed_url, last_etag, last_modified")
     .eq("enabled", true)
     .eq("source_type", "rss");
 
@@ -56,10 +58,33 @@ export async function collectArticles(
   await Promise.all(
     (sources ?? []).map(async (source: NewsSourceRow) => {
       try {
-        const items = await fetchFeed(source.feed_url);
+        const feed = await fetchFeed(source.feed_url, {
+          etag: source.last_etag,
+          lastModified: source.last_modified,
+        });
+
+        // 서버가 "바뀐 내용 없음" 이라고 답하면 더 할 일이 없다.
+        if (feed.notModified) {
+          results.push({
+            name: source.name,
+            feed_url: source.feed_url,
+            status: "unchanged",
+            items: 0,
+          });
+          await supabase
+            .from("news_sources")
+            .update({
+              last_fetched_at: new Date().toISOString(),
+              last_status: "ok",
+              last_error: null,
+            })
+            .eq("id", source.id);
+          return;
+        }
+
         let usable = 0;
 
-        for (const item of items) {
+        for (const item of feed.items) {
           // 발행 시간이 없는 피드는 수집 시각을 발행 시각으로 삼는다.
           const publishedAt = item.publishedAt ?? new Date();
           const time = publishedAt.getTime();
@@ -91,6 +116,8 @@ export async function collectArticles(
             last_fetched_at: new Date().toISOString(),
             last_status: "ok",
             last_error: null,
+            last_etag: feed.etag,
+            last_modified: feed.lastModified,
           })
           .eq("id", source.id);
       } catch (err) {

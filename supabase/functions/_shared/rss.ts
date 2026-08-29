@@ -97,19 +97,50 @@ export function parseFeed(xml: string): FeedItem[] {
   return items;
 }
 
-/** 피드를 받아온다. 응답이 느리면 timeoutMs 후 중단한다. */
-export async function fetchFeed(url: string, timeoutMs = 15000): Promise<FeedItem[]> {
+export interface FeedCache {
+  etag?: string | null;
+  lastModified?: string | null;
+}
+
+export interface FeedResult {
+  /** 서버가 "바뀐 내용 없음(304)" 이라고 답했다 */
+  notModified: boolean;
+  items: FeedItem[];
+  etag: string | null;
+  lastModified: string | null;
+}
+
+/**
+ * 피드를 받아온다. 응답이 느리면 timeoutMs 후 중단한다.
+ * 이전에 받은 ETag / Last-Modified 를 함께 보내, 바뀐 내용이 없으면
+ * 본문 없이 304 만 받는다.
+ */
+export async function fetchFeed(
+  url: string,
+  cache: FeedCache = {},
+  timeoutMs = 15000,
+): Promise<FeedResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "korea-news-issue-bot/1.0 (+RSS reader)",
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
-      },
-    });
+    const headers: Record<string, string> = {
+      "User-Agent": "korea-news-issue-bot/1.0 (+RSS reader)",
+      "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+    };
+    if (cache.etag) headers["If-None-Match"] = cache.etag;
+    if (cache.lastModified) headers["If-Modified-Since"] = cache.lastModified;
+
+    const response = await fetch(url, { signal: controller.signal, headers });
+
+    if (response.status === 304) {
+      return {
+        notModified: true,
+        items: [],
+        etag: cache.etag ?? null,
+        lastModified: cache.lastModified ?? null,
+      };
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -138,7 +169,12 @@ export async function fetchFeed(url: string, timeoutMs = 15000): Promise<FeedIte
       }
     }
 
-    return parseFeed(xml);
+    return {
+      notModified: false,
+      items: parseFeed(xml),
+      etag: response.headers.get("etag"),
+      lastModified: response.headers.get("last-modified"),
+    };
   } finally {
     clearTimeout(timer);
   }

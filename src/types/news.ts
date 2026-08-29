@@ -40,6 +40,8 @@ export interface TimelineSection {
   endTime: string;
   summary: string | null;
   articles: NewsArticle[];
+  /** 요약을 만들 때 사용한 기사 수. 목록을 못 불러온 시간대도 개수는 안다. */
+  articleCount: number;
 }
 
 export interface IssueDetail {

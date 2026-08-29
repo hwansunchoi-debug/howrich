@@ -181,17 +181,15 @@ export async function fetchIssueDetail(issueId: string): Promise<IssueDetail> {
 
 /**
  * 시간대(1시간) 단위로 기사와 AI 요약을 합친다.
+ *
+ * 요약(timeline_events)은 기사와 별개로 계속 보관되므로, 기사 목록을
+ * 일부만 불러온 오래된 이슈에서도 시간대가 끊기지 않도록 양쪽을 합친다.
  * 아직 요약이 만들어지지 않은 시간대도 기사와 함께 그대로 보여준다.
  */
 function buildSections(
   events: TimelineEvent[],
   articles: NewsArticle[],
 ): TimelineSection[] {
-  const summaryByHour = new Map<string, string>();
-  for (const event of events) {
-    summaryByHour.set(hourBucketKey(event.start_time), event.summary);
-  }
-
   const grouped = new Map<string, NewsArticle[]>();
   for (const article of articles) {
     const key = hourBucketKey(article.published_at);
@@ -200,12 +198,26 @@ function buildSections(
     grouped.set(key, list);
   }
 
-  return [...grouped.entries()]
-    .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([startTime, list]) => ({
-      startTime,
-      endTime: new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString(),
-      summary: summaryByHour.get(startTime) ?? null,
-      articles: list.sort((a, b) => b.published_at.localeCompare(a.published_at)),
-    }));
+  const summaryByHour = new Map<string, TimelineEvent>();
+  for (const event of events) {
+    summaryByHour.set(hourBucketKey(event.start_time), event);
+  }
+
+  const keys = new Set([...grouped.keys(), ...summaryByHour.keys()]);
+
+  return [...keys]
+    .sort((a, b) => b.localeCompare(a))
+    .map((startTime) => {
+      const list = (grouped.get(startTime) ?? []).sort((a, b) =>
+        b.published_at.localeCompare(a.published_at),
+      );
+      const event = summaryByHour.get(startTime);
+      return {
+        startTime,
+        endTime: new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString(),
+        summary: event?.summary ?? null,
+        articles: list,
+        articleCount: list.length || event?.article_count || 0,
+      };
+    });
 }
