@@ -1,53 +1,66 @@
--- =====================================================================
--- 5분마다 뉴스 파이프라인(news-pipeline Edge Function)을 실행하는 스케줄
--- =====================================================================
--- Supabase 대시보드 > SQL Editor 에서 한 번 실행한다.
--- service_role key 가 들어가므로 이 값은 Git 에 커밋하지 말고
--- 아래 vault.create_secret 부분만 각자 값으로 바꿔 실행한다.
--- =====================================================================
+-- 자동 실행 예약
+--   기사 수집 (AI 안 씀, 비용 없음)  : 15분마다
+--   AI 분석 + 타임라인 생성           : 1시간마다 (매시 5분)
+--
+-- Supabase 대시보드 > SQL Editor 에서 실행한다.
+-- 아래 <여기에_서비스_역할_키_붙여넣기> 부분만 바꿔주면 된다.
+-- 여러 번 실행해도 안전하다.
 
 create extension if not exists pg_cron with schema extensions;
 create extension if not exists pg_net  with schema extensions;
 
--- 1) 프로젝트 URL / service_role key 를 Vault 에 저장한다. (최초 1회)
---    이미 등록했다면 이 두 줄은 건너뛴다.
-select vault.create_secret(
-  'https://<YOUR-PROJECT-REF>.supabase.co',
-  'news_project_url'
-);
-select vault.create_secret(
-  '<YOUR-SERVICE-ROLE-KEY>',
-  'news_service_role_key'
-);
+-- 이전 값이 있으면 지우고 다시 넣는다.
+delete from vault.secrets where name in ('news_project_url', 'news_service_role_key');
+select vault.create_secret('https://unpkytftbetzoernnedc.supabase.co', 'news_project_url');
+select vault.create_secret('<여기에_서비스_역할_키_붙여넣기>', 'news_service_role_key');
 
--- 2) 5분마다 파이프라인 실행
-select cron.unschedule('news-pipeline-every-5-min')
-where exists (
-  select 1 from cron.job where jobname = 'news-pipeline-every-5-min'
-);
-
-select cron.schedule(
+-- 예전 이름의 예약이 남아 있으면 정리한다.
+select cron.unschedule(jobname)
+from cron.job
+where jobname in (
   'news-pipeline-every-5-min',
-  '*/5 * * * *',
+  'news-collect-every-15-min',
+  'news-pipeline-hourly'
+);
+
+-- 15분마다 기사만 수집한다. RSS 만 읽으므로 AI 요금이 들지 않는다.
+select cron.schedule(
+  'news-collect-every-15-min',
+  '*/15 * * * *',
   $$
   select net.http_post(
-    url := (
-      select decrypted_secret from vault.decrypted_secrets
-      where name = 'news_project_url'
-    ) || '/functions/v1/news-pipeline',
+    url := (select decrypted_secret from vault.decrypted_secrets
+            where name = 'news_project_url') || '/functions/v1/news-collect',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || (
-        select decrypted_secret from vault.decrypted_secrets
-        where name = 'news_service_role_key'
-      )
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets
+                                     where name = 'news_service_role_key')
     ),
     body := '{}'::jsonb,
-    timeout_milliseconds := 150000
+    timeout_milliseconds := 60000
   );
   $$
 );
 
--- 확인
--- select * from cron.job;
--- select * from cron.job_run_details order by start_time desc limit 10;
+-- 매시 5분에 AI 분석과 타임라인 생성까지 포함한 전체 과정을 실행한다.
+select cron.schedule(
+  'news-pipeline-hourly',
+  '5 * * * *',
+  $$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets
+            where name = 'news_project_url') || '/functions/v1/news-pipeline',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets
+                                     where name = 'news_service_role_key')
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 300000
+  );
+  $$
+);
+
+select jobname, schedule, active from cron.job
+where jobname in ('news-collect-every-15-min', 'news-pipeline-hourly')
+order by jobname;

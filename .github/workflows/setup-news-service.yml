@@ -21,6 +21,14 @@ on:
         description: "설치 후 뉴스 수집을 한 번 실행해 본다"
         type: boolean
         default: true
+      ai_model:
+        description: "사용할 AI 모델 (haiku 가 저렴, opus 가 정확)"
+        type: choice
+        default: claude-haiku-4-5
+        options:
+          - claude-haiku-4-5
+          - claude-sonnet-5
+          - claude-opus-5
 
 concurrency:
   group: setup-news-service
@@ -142,7 +150,9 @@ jobs:
         run: |
           supabase secrets set --project-ref "$PROJECT_REF" \
             ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
-          echo "AI 열쇠 등록 완료"
+          supabase secrets set --project-ref "$PROJECT_REF" \
+            NEWS_AI_MODEL="${{ inputs.ai_model }}"
+          echo "AI 열쇠 등록 완료 (모델: ${{ inputs.ai_model }})"
 
       - name: 4. 수집 프로그램 올리기
         env:
@@ -154,7 +164,7 @@ jobs:
           done
           echo "함수 4개 배포 완료"
 
-      - name: 5. 5분마다 자동 실행 예약
+      - name: 5. 자동 실행 예약 (수집 15분 / AI 1시간)
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |

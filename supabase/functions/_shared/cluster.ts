@@ -64,7 +64,7 @@ export async function clusterArticles(
   supabase: SupabaseClient,
   options: { maxArticles?: number } = {},
 ): Promise<ClusterResult> {
-  const maxArticles = options.maxArticles ?? 40;
+  const maxArticles = options.maxArticles ?? 120;
 
   const { data: pending, error: pendingError } = await supabase
     .from("unclustered_articles")

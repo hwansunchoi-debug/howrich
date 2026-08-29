@@ -16,6 +16,17 @@ function effort(): "low" | "medium" | "high" | "xhigh" | "max" {
     : DEFAULT_EFFORT;
 }
 
+/**
+ * effort 를 받는 모델과 그렇지 않은 모델이 있다.
+ * Haiku 4.5 처럼 지원하지 않는 모델에 effort 를 보내면 요청이 거부되므로,
+ * 지원하는 모델에만 붙인다.
+ */
+function supportsEffort(modelId: string): boolean {
+  return /(fable-5|mythos-5|opus-5|opus-4-8|opus-4-7|opus-4-6|sonnet-5|sonnet-4-6)/.test(
+    modelId,
+  );
+}
+
 function model(): string {
   return Deno.env.get("NEWS_AI_MODEL") ?? DEFAULT_MODEL;
 }
@@ -76,10 +87,11 @@ export async function askForJson<T>({
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
+      const modelId = model();
       const response = await anthropic.messages.create({
-        model: model(),
+        model: modelId,
         max_tokens: maxTokens,
-        output_config: { effort: effort() },
+        ...(supportsEffort(modelId) ? { output_config: { effort: effort() } } : {}),
         system,
         messages: [{ role: "user", content: user }],
       });

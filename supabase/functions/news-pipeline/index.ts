@@ -56,8 +56,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 5. 오래된 데이터 정리 (1시간에 한 번 정도만)
-    if (new Date().getUTCMinutes() < 5) {
+    // 5. 오래된 데이터 정리 (하루 한 번, 한국 시간 새벽 3시 무렵)
+    if (new Date().getUTCHours() === 18) {
       const { error: pruneError } = await supabase.rpc("prune_old_news", {
         retain_days: 7,
       });

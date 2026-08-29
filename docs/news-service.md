@@ -30,7 +30,17 @@ RSS / 뉴스 API
 ```
 
 `news-pipeline` Edge Function 이 위 단계를 순서대로 모두 실행한다.
-pg_cron 이 **5분마다** 이 함수를 호출한다.
+
+pg_cron 예약은 둘로 나뉘어 있다. AI 요금은 분석 단계에서만 발생하므로,
+돈이 들지 않는 수집은 자주 하고 AI 는 한 시간에 한 번만 부른다.
+
+| 예약 | 주기 | 하는 일 | AI 요금 |
+| --- | --- | --- | --- |
+| `news-collect-every-15-min` | 15분 | RSS 수집만 | 없음 |
+| `news-pipeline-hourly` | 매시 5분 | 수집 + AI 분류 + 점수 + 타임라인 | 발생 |
+
+RSS 피드는 최근 기사 수십 건만 보여주므로, 수집을 15분마다 해야
+바쁜 시간대에 기사를 놓치지 않는다.
 
 ---
 
@@ -100,7 +110,7 @@ AI 판단 원칙은 각 함수의 시스템 프롬프트에 들어 있다.
 | 이름 | 필수 | 설명 |
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | ✅ | Claude API 키. 없으면 수집·점수 갱신만 동작하고 AI 단계는 건너뛴다. |
-| `NEWS_AI_MODEL` | | 기본 `claude-opus-5` |
+| `NEWS_AI_MODEL` | | 기본 `claude-opus-5`. 설치 워크플로는 `claude-haiku-4-5` 로 등록한다 |
 | `NEWS_AI_EFFORT` | | 기본 `low`. 요약 품질을 올리려면 `medium` / `high` |
 
 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 는 Edge Function 런타임이 자동 주입한다.
@@ -187,12 +197,25 @@ select * from cron.job_run_details order by start_time desc limit 10;  -- 실행
 
 ## 6. 비용 관리
 
-파이프라인 1회 실행당 Claude 호출은 최대 `1(분류) + 6(타임라인)`회이고,
-각 호출의 입력은 기사 제목 수십 건 정도로 작다. 더 줄이고 싶다면:
+파이프라인 1회 실행당 Claude 호출은 최대 `1(분류) + 6(타임라인)`회다.
+비용을 좌우하는 것은 **호출 1회당 가격이 아니라 하루에 몇 번 부르느냐**이다.
+5분마다 부르면 한 달에 8,640번이 된다.
 
-- cron 주기를 `*/10 * * * *` 로 늘린다.
-- `news-pipeline` 호출 본문에 `{"maxIssues": 3, "maxArticles": 25}` 를 넣는다.
-- `NEWS_AI_EFFORT` 를 `low` 로 둔다. (기본값)
+대략적인 월 비용 (기사량에 따라 달라진다):
+
+| | 5분마다 | 15분마다 | 1시간마다 |
+| --- | --- | --- | --- |
+| `claude-opus-5` | ~$690 | ~$230 | ~$60 |
+| `claude-haiku-4-5` | ~$140 | ~$46 | ~$25 |
+
+기본 구성은 **Haiku + 1시간**이다. 더 줄이거나 늘리려면:
+
+- `cron.schedule('news-pipeline-hourly', ...)` 의 주기를 바꾼다.
+- `NEWS_AI_MODEL` 을 바꾼다. 품질을 올리려면 `claude-sonnet-5` 나 `claude-opus-5`.
+- `news-pipeline` 호출 본문에 `{"maxIssues": 3, "maxArticles": 60}` 를 넣는다.
+
+`NEWS_AI_EFFORT` 는 effort 를 지원하는 모델(Opus/Sonnet 계열)에만 적용된다.
+Haiku 4.5 처럼 지원하지 않는 모델에는 자동으로 생략한다.
 
 ---
 
