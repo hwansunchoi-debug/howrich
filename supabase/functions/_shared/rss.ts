@@ -5,7 +5,8 @@ export interface FeedItem {
   title: string;
   url: string;
   summary: string | null;
-  publishedAt: Date;
+  /** 피드에 발행 시간이 없으면 null. 수집 시각으로 대신한다. */
+  publishedAt: Date | null;
 }
 
 const ENTITIES: Record<string, string> = {
@@ -79,7 +80,9 @@ export function parseFeed(xml: string): FeedItem[] {
     const url = linkValue(block) ?? tagValue(block, "guid");
     const publishedAt = parseDate(block);
 
-    if (!title || !url || !/^https?:\/\//i.test(url) || !publishedAt) continue;
+    // 발행 시간이 없는 피드(예: 한겨레)도 버리지 않는다.
+    // 15분마다 수집하므로, 처음 보인 시각을 발행 시각으로 써도 오차가 크지 않다.
+    if (!title || !url || !/^https?:\/\//i.test(url)) continue;
 
     items.push({
       title,

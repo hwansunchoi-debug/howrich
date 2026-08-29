@@ -60,7 +60,9 @@ export async function collectArticles(
         let usable = 0;
 
         for (const item of items) {
-          const time = item.publishedAt.getTime();
+          // 발행 시간이 없는 피드는 수집 시각을 발행 시각으로 삼는다.
+          const publishedAt = item.publishedAt ?? new Date();
+          const time = publishedAt.getTime();
           if (time < oldestAllowed || time > newestAllowed) continue;
           if (seenUrls.has(item.url)) continue;
           seenUrls.add(item.url);
@@ -69,7 +71,7 @@ export async function collectArticles(
           rows.push({
             title: item.title,
             publisher: source.name,
-            published_at: item.publishedAt.toISOString(),
+            published_at: publishedAt.toISOString(),
             url: item.url,
             summary: item.summary,
             source_id: source.id,

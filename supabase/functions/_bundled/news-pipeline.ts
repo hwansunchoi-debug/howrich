@@ -106,7 +106,7 @@ function parseFeed(xml) {
     const title = clean(tagValue(block, "title"), 300);
     const url = linkValue(block) ?? tagValue(block, "guid");
     const publishedAt = parseDate(block);
-    if (!title || !url || !/^https?:\/\//i.test(url) || !publishedAt) continue;
+    if (!title || !url || !/^https?:\/\//i.test(url)) continue;
     items.push({
       title,
       url: url.trim(),
@@ -174,7 +174,8 @@ async function collectArticles(supabase) {
         const items = await fetchFeed(source.feed_url);
         let usable = 0;
         for (const item of items) {
-          const time = item.publishedAt.getTime();
+          const publishedAt = item.publishedAt ?? /* @__PURE__ */ new Date();
+          const time = publishedAt.getTime();
           if (time < oldestAllowed || time > newestAllowed) continue;
           if (seenUrls.has(item.url)) continue;
           seenUrls.add(item.url);
@@ -182,7 +183,7 @@ async function collectArticles(supabase) {
           rows.push({
             title: item.title,
             publisher: source.name,
-            published_at: item.publishedAt.toISOString(),
+            published_at: publishedAt.toISOString(),
             url: item.url,
             summary: item.summary,
             source_id: source.id
@@ -314,8 +315,11 @@ var SYSTEM_PROMPT = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uD3B8\uC9D1\u
 - \uAC19\uC740 \uB2E8\uC5B4\uAC00 \uB4E4\uC5B4\uAC00\uB3C4 \uC0AC\uAC74\uC774 \uB2E4\uB974\uBA74 \uB2E4\uB978 \uC774\uC288\uB2E4.
 - \uAE30\uC874 \uC774\uC288 \uC911 \uB9DE\uB294 \uAC83\uC774 \uC788\uC73C\uBA74 \uBC18\uB4DC\uC2DC \uAE30\uC874 \uC774\uC288\uC5D0 \uB123\uB294\uB2E4. \uBE44\uC2B7\uD55C \uC774\uC288\uB97C \uC0C8\uB85C \uB9CC\uB4E4\uC9C0 \uC54A\uB294\uB2E4.
 - \uB9DE\uB294 \uAE30\uC874 \uC774\uC288\uAC00 \uC5C6\uC73C\uBA74 \uC0C8 \uC774\uC288\uB97C \uB9CC\uB4E0\uB2E4. \uAC19\uC740 \uC0AC\uAC74\uC744 \uB2E4\uB8E8\uB294 \uC0C8 \uAE30\uC0AC\uB07C\uB9AC\uB294 \uD558\uB098\uC758 \uC0C8 \uC774\uC288\uB85C \uBB36\uB294\uB2E4.
-- \uB2E8\uC21C \uAD11\uACE0, \uBD80\uACE0, \uB0A0\uC528 \uC548\uB0B4, \uC6B4\uC138, \uC2A4\uD3EC\uCE20 \uACBD\uAE30 \uACB0\uACFC, \uC8FC\uAC00 \uC2DC\uD669 \uBC18\uBCF5 \uAE30\uC0AC\uCC98\uB7FC
-  "\uC9C0\uAE08 \uB300\uD55C\uBBFC\uAD6D\uC758 \uC774\uC288"\uB77C\uACE0 \uBCF4\uAE30 \uC5B4\uB824\uC6B4 \uAE30\uC0AC\uB294 skipped \uC5D0 \uB123\uB294\uB2E4.
+- skipped \uB294 \uC544\uAEF4\uC11C \uC4F4\uB2E4. \uAD11\uACE0, \uBD80\uACE0, \uC6B4\uC138, \uB0A0\uC528 \uC548\uB0B4, \uAC1C\uBCC4 \uC885\uBAA9 \uC2DC\uD669\uCC98\uB7FC
+  \uC0AC\uAC74\uC774\uB77C\uACE0 \uBCF4\uAE30 \uC5B4\uB824\uC6B4 \uAE30\uC0AC\uB9CC \uB123\uB294\uB2E4.
+- \uAE30\uC0AC\uAC00 \uD55C \uAC74\uBFD0\uC774\uC5B4\uB3C4 \uC0AC\uAC74\uC744 \uB2E4\uB8E8\uACE0 \uC788\uB2E4\uBA74 \uC774\uC288\uB85C \uB9CC\uB4E0\uB2E4.
+  \uB098\uC911\uC5D0 \uAC19\uC740 \uC0AC\uAC74\uC758 \uAE30\uC0AC\uAC00 \uB354 \uB4E4\uC5B4\uC624\uBA74 \uADF8 \uC774\uC288\uC5D0 \uC313\uC778\uB2E4.
+- \uD310\uB2E8\uC774 \uC560\uB9E4\uD558\uBA74 skipped \uD558\uC9C0 \uB9D0\uACE0 \uC774\uC288\uB85C \uB9CC\uB4E0\uB2E4.
 
 \uC774\uC288 \uC81C\uBAA9 \uADDC\uCE59:
 - 20\uC790 \uC774\uB0B4\uC758 \uBA85\uC0AC\uD615 \uBB38\uAD6C. (\uC608: "\uD654\uBB3C\uC5F0\uB300 \uCD1D\uD30C\uC5C5", "\uAD6D\uD68C \uC608\uC0B0\uC548 \uCC98\uB9AC \uC9C0\uC5F0")
@@ -491,20 +495,24 @@ var SYSTEM_PROMPT2 = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uC774\uC288\
 issue_description \uC740 \uC774 \uC774\uC288\uC758 "\uD604\uC7AC \uC0C1\uD669"\uC744 \uD55C \uBB38\uC7A5(40\uC790 \uB0B4\uC678)\uC73C\uB85C \uC815\uB9AC\uD55C \uAC83\uC774\uB2E4.
 \uAC00\uC7A5 \uCD5C\uADFC \uC0C1\uD669 \uAE30\uC900\uC73C\uB85C \uC4F4\uB2E4.
 
+\uB9E4\uC6B0 \uC911\uC694: \uC694\uC57D\uD560_\uC2DC\uAC04\uB300 \uC5D0 \uB4E4\uC5B4 \uC788\uB294 start_time \uC740 **\uD558\uB098\uB3C4 \uBE60\uC9D0\uC5C6\uC774** buckets \uC5D0
+\uB123\uC5B4\uC57C \uD55C\uB2E4. \uAE30\uC0AC\uAC00 \uD55C \uAC74\uBFD0\uC774\uAC70\uB098 \uC55E \uC2DC\uAC04\uB300\uC640 \uB0B4\uC6A9\uC774 \uACB9\uCCD0\uB3C4 \uAC74\uB108\uB6F0\uC9C0 \uC54A\uB294\uB2E4.
+\uADF8\uB7F0 \uACBD\uC6B0\uC5D0\uB3C4 \uADF8 \uC2DC\uAC04\uB300\uC5D0 \uBB34\uC5C7\uC774 \uBCF4\uB3C4\uB410\uB294\uC9C0 \uD55C \uBB38\uC7A5\uC73C\uB85C \uC4F4\uB2E4.
+
 \uBC18\uB4DC\uC2DC \uC544\uB798 JSON \uD615\uC2DD\uB9CC \uCD9C\uB825\uD55C\uB2E4.
 {
   "issue_description": "\uD604\uC7AC \uC0C1\uD669 \uD55C \uC904 \uC694\uC57D",
   "buckets": [{ "start_time": "\uC694\uCCAD\uC5D0 \uC788\uB358 \uAC12 \uADF8\uB300\uB85C", "summary": "\uD55C \uC904 \uC694\uC57D" }]
 }`;
 async function buildTimelines(supabase, options = {}) {
-  const maxIssues = options.maxIssues ?? 6;
+  const maxIssues = options.maxIssues ?? 12;
   const result = {
     issuesChecked: 0,
     issuesUpdated: 0,
     eventsWritten: 0,
     errors: []
   };
-  const { data: issues, error } = await supabase.from("issues").select("id, title, description, last_article_at, timeline_built_at").not("last_article_at", "is", null).order("issue_score", { ascending: false }).limit(20);
+  const { data: issues, error } = await supabase.from("issues").select("id, title, description, last_article_at, timeline_built_at").not("last_article_at", "is", null).order("issue_score", { ascending: false }).limit(30);
   if (error) throw new Error(`\uC774\uC288 \uC870\uD68C \uC2E4\uD328: ${error.message}`);
   const targets = (issues ?? []).filter(
     (issue) => !issue.timeline_built_at || (issue.last_article_at ?? "") > issue.timeline_built_at
@@ -577,6 +585,36 @@ async function buildTimelineForIssue(supabase, issue) {
     maxTokens: 4e3
   });
   const pendingMap = new Map(pending);
+  const covered = new Set(
+    (ai.buckets ?? []).map((bucket) => normalizeKey(bucket?.start_time, pendingMap)).filter((key) => key !== null)
+  );
+  const missing = pending.filter(([key]) => !covered.has(key));
+  if (missing.length > 0) {
+    try {
+      const retry = await askForJson({
+        system: SYSTEM_PROMPT2,
+        user: JSON.stringify(
+          {
+            ...payload,
+            \uC694\uC57D\uD560_\uC2DC\uAC04\uB300: missing.map(([key, list]) => ({
+              start_time: key,
+              \uC2DC\uAC04\uB300: kstLabel(new Date(key)),
+              \uAE30\uC0AC: list.map((article) => ({
+                title: article.title,
+                publisher: article.publisher
+              }))
+            }))
+          },
+          null,
+          2
+        ),
+        maxTokens: 2e3
+      });
+      ai.buckets = [...ai.buckets ?? [], ...retry.buckets ?? []];
+    } catch (err) {
+      console.error("\uBE60\uC9C4 \uC2DC\uAC04\uB300 \uC7AC\uC694\uCCAD \uC2E4\uD328:", err);
+    }
+  }
   const events = (ai.buckets ?? []).map((bucket) => {
     const key = normalizeKey(bucket?.start_time, pendingMap);
     const summary = (bucket?.summary ?? "").trim();
