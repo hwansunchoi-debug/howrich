@@ -406,13 +406,25 @@ var SYSTEM_PROMPT = `\uB2F9\uC2E0\uC740 \uD55C\uAD6D \uB274\uC2A4 \uD3B8\uC9D1\u
 \uBAA8\uB4E0 \uAE30\uC0AC index \uB294 assignments / new_issues / skipped \uC911 \uC815\uD655\uD788 \uD55C \uACF3\uC5D0\uB9CC \uB123\uB294\uB2E4.`;
 async function clusterArticles(supabase, options = {}) {
   const maxArticles = options.maxArticles ?? 120;
-  const { data: pending, error: pendingError } = await supabase.from("unclustered_articles").select("id, title, publisher, published_at, summary").order("published_at", { ascending: true }).limit(maxArticles);
+  const maxAgeHours = options.maxAgeHours ?? 48;
+  const cutoff = new Date(Date.now() - maxAgeHours * 36e5).toISOString();
+  const { data: staleRows, error: staleError } = await supabase.from("unclustered_articles").select("id").lt("published_at", cutoff).limit(2e3);
+  if (staleError) throw new Error(`\uC624\uB798\uB41C \uAE30\uC0AC \uC870\uD68C \uC2E4\uD328: ${staleError.message}`);
+  const staleIds = (staleRows ?? []).map((row) => row.id);
+  if (staleIds.length > 0) {
+    const { error: markStaleError } = await supabase.from("articles").update({ clustered_at: (/* @__PURE__ */ new Date()).toISOString() }).in("id", staleIds);
+    if (markStaleError) {
+      throw new Error(`\uC624\uB798\uB41C \uAE30\uC0AC \uD45C\uC2DC \uC2E4\uD328: ${markStaleError.message}`);
+    }
+  }
+  const { data: pending, error: pendingError } = await supabase.from("unclustered_articles").select("id, title, publisher, published_at, summary").gte("published_at", cutoff).order("published_at", { ascending: true }).limit(maxArticles);
   if (pendingError) {
     throw new Error(`\uBBF8\uBD84\uB958 \uAE30\uC0AC \uC870\uD68C \uC2E4\uD328: ${pendingError.message}`);
   }
   const articles = pending ?? [];
   const empty = {
     processed: 0,
+    tooOld: staleIds.length,
     assigned: 0,
     created: 0,
     skipped: 0,
@@ -494,6 +506,7 @@ async function clusterArticles(supabase, options = {}) {
   if (markError) throw new Error(`\uBD84\uB958 \uD45C\uC2DC \uC2E4\uD328: ${markError.message}`);
   return {
     processed: articles.length,
+    tooOld: staleIds.length,
     assigned: links.length,
     created,
     skipped: skipped + (articles.length - usedIndexes.size),
@@ -789,12 +802,33 @@ Deno.serve(async (req) => {
     }
     if (hasAnthropicKey()) {
       try {
-        const result = await clusterArticles(supabase, {
-          maxArticles: Number(options.maxArticles) || void 0
-        });
-        steps.cluster = result;
-        usage = addUsage(usage, result.usage);
-        await recordUsage(supabase, "cluster", result.usage);
+        const budgetMs = Number(options.clusterBudgetMs) || 7e4;
+        const summary = {
+          rounds: 0,
+          processed: 0,
+          tooOld: 0,
+          assigned: 0,
+          created: 0,
+          skipped: 0,
+          newIssueTitles: []
+        };
+        while (Date.now() - startedAt < budgetMs) {
+          const result = await clusterArticles(supabase, {
+            maxArticles: Number(options.maxArticles) || void 0,
+            maxAgeHours: Number(options.maxAgeHours) || void 0
+          });
+          summary.rounds += 1;
+          summary.processed += result.processed;
+          summary.tooOld += result.tooOld;
+          summary.assigned += result.assigned;
+          summary.created += result.created;
+          summary.skipped += result.skipped;
+          summary.newIssueTitles.push(...result.newIssueTitles);
+          usage = addUsage(usage, result.usage);
+          await recordUsage(supabase, "cluster", result.usage);
+          if (result.processed === 0) break;
+        }
+        steps.cluster = summary;
       } catch (error) {
         errors.push(`cluster: ${error instanceof Error ? error.message : String(error)}`);
       }

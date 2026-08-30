@@ -94,7 +94,14 @@ export interface RunResult {
   errors?: string[];
   steps?: {
     collect?: { fetched?: number; inserted?: number };
-    cluster?: { processed?: number; assigned?: number; created?: number; skipped?: number };
+    cluster?: {
+      rounds?: number;
+      processed?: number;
+      tooOld?: number;
+      assigned?: number;
+      created?: number;
+      skipped?: number;
+    };
     timeline?: { issuesUpdated?: number; eventsWritten?: number };
   };
   usage?: AiUsage;
