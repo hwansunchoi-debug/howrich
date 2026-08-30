@@ -3,6 +3,8 @@ import { addUsage, askForJson, emptyUsage, type Usage } from "./anthropic.ts";
 
 export interface ClusterResult {
   processed: number;
+  /** 오래돼서 분석하지 않고 넘긴 기사 수 */
+  tooOld: number;
   assigned: number;
   created: number;
   skipped: number;
@@ -78,13 +80,38 @@ const SYSTEM_PROMPT = `당신은 한국 뉴스 편집자다.
 /** 아직 이슈에 배정되지 않은 기사를 AI로 분류한다. */
 export async function clusterArticles(
   supabase: SupabaseClient,
-  options: { maxArticles?: number } = {},
+  options: { maxArticles?: number; maxAgeHours?: number } = {},
 ): Promise<ClusterResult> {
   const maxArticles = options.maxArticles ?? 120;
+  const maxAgeHours = options.maxAgeHours ?? 48;
+
+  // 분석을 며칠 만에 하면 오래된 기사가 잔뜩 밀려 있다.
+  // 지난 뉴스로 지금의 이슈를 만들 수는 없으므로, 기준보다 오래된 기사는
+  // AI 를 태우지 않고 처리 완료로만 표시해 대기열에서 뺀다.
+  const cutoff = new Date(Date.now() - maxAgeHours * 3_600_000).toISOString();
+  const { data: staleRows, error: staleError } = await supabase
+    .from("unclustered_articles")
+    .select("id")
+    .lt("published_at", cutoff)
+    .limit(2000);
+
+  if (staleError) throw new Error(`오래된 기사 조회 실패: ${staleError.message}`);
+
+  const staleIds = (staleRows ?? []).map((row) => (row as { id: string }).id);
+  if (staleIds.length > 0) {
+    const { error: markStaleError } = await supabase
+      .from("articles")
+      .update({ clustered_at: new Date().toISOString() })
+      .in("id", staleIds);
+    if (markStaleError) {
+      throw new Error(`오래된 기사 표시 실패: ${markStaleError.message}`);
+    }
+  }
 
   const { data: pending, error: pendingError } = await supabase
     .from("unclustered_articles")
     .select("id, title, publisher, published_at, summary")
+    .gte("published_at", cutoff)
     .order("published_at", { ascending: true })
     .limit(maxArticles);
 
@@ -95,6 +122,7 @@ export async function clusterArticles(
   const articles = (pending ?? []) as ArticleRow[];
   const empty: ClusterResult = {
     processed: 0,
+    tooOld: staleIds.length,
     assigned: 0,
     created: 0,
     skipped: 0,
@@ -208,6 +236,7 @@ export async function clusterArticles(
 
   return {
     processed: articles.length,
+    tooOld: staleIds.length,
     assigned: links.length,
     created,
     skipped: skipped + (articles.length - usedIndexes.size),

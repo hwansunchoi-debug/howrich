@@ -80,12 +80,40 @@ Deno.serve(async (req) => {
     // 2. AI 이슈 분류
     if (hasAnthropicKey()) {
       try {
-        const result = await clusterArticles(supabase, {
-          maxArticles: Number(options.maxArticles) || undefined,
-        });
-        steps.cluster = result;
-        usage = addUsage(usage, result.usage);
-        await recordUsage(supabase, "cluster", result.usage);
+        // 밀린 기사를 한 번의 실행으로 최대한 따라잡는다.
+        // Edge Function 실행 시간 제한이 있으므로 예산 안에서만 반복한다.
+        const budgetMs = Number(options.clusterBudgetMs) || 70_000;
+        const summary = {
+          rounds: 0,
+          processed: 0,
+          tooOld: 0,
+          assigned: 0,
+          created: 0,
+          skipped: 0,
+          newIssueTitles: [] as string[],
+        };
+
+        while (Date.now() - startedAt < budgetMs) {
+          const result = await clusterArticles(supabase, {
+            maxArticles: Number(options.maxArticles) || undefined,
+            maxAgeHours: Number(options.maxAgeHours) || undefined,
+          });
+
+          summary.rounds += 1;
+          summary.processed += result.processed;
+          summary.tooOld += result.tooOld;
+          summary.assigned += result.assigned;
+          summary.created += result.created;
+          summary.skipped += result.skipped;
+          summary.newIssueTitles.push(...result.newIssueTitles);
+
+          usage = addUsage(usage, result.usage);
+          await recordUsage(supabase, "cluster", result.usage);
+
+          if (result.processed === 0) break;
+        }
+
+        steps.cluster = summary;
       } catch (error) {
         errors.push(`cluster: ${error instanceof Error ? error.message : String(error)}`);
       }

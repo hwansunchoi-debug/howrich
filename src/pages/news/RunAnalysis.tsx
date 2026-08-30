@@ -20,9 +20,15 @@ function readKey(): string {
   }
 }
 
+/** 한 번 누르면 이만큼까지 이어서 돌린다. 요금이 무한정 나가지 않도록 막는다. */
+const MAX_ROUNDS = 8;
+
 export default function RunAnalysis() {
   const [adminKey, setAdminKey] = useState(readKey);
   const [result, setResult] = useState<RunResult | null>(null);
+  const [progress, setProgress] = useState<{ round: number; done: boolean } | null>(
+    null,
+  );
   const queryClient = useQueryClient();
 
   const { data: status, refetch: refetchStatus } = useQuery({
@@ -37,10 +43,64 @@ export default function RunAnalysis() {
     refetchInterval: 60_000,
   });
 
+  /**
+   * 밀린 기사가 남아 있으면 비워질 때까지 이어서 돌린다.
+   * 한 번의 실행으로 처리할 수 있는 양이 정해져 있어, 며칠 만에 분석하면
+   * 여러 번 눌러야 했다.
+   */
   const run = useMutation({
-    mutationFn: () => runPipeline(adminKey.trim()),
-    onSuccess: (data) => {
-      setResult(data);
+    mutationFn: async () => {
+      const key = adminKey.trim();
+      const totals: RunResult = {
+        ok: true,
+        steps: { cluster: {}, timeline: {} },
+        usage: { calls: 0, inputTokens: 0, outputTokens: 0, model: "", costUsd: 0 },
+        errors: [],
+      };
+
+      for (let round = 1; round <= MAX_ROUNDS; round++) {
+        setProgress({ round, done: false });
+        const data = await runPipeline(key);
+
+        // 회차별 결과를 합친다.
+        const cluster = data.steps?.cluster ?? {};
+        const timeline = data.steps?.timeline ?? {};
+        totals.steps!.cluster = {
+          processed: (totals.steps!.cluster?.processed ?? 0) + (cluster.processed ?? 0),
+          tooOld: (totals.steps!.cluster?.tooOld ?? 0) + (cluster.tooOld ?? 0),
+          assigned: (totals.steps!.cluster?.assigned ?? 0) + (cluster.assigned ?? 0),
+          created: (totals.steps!.cluster?.created ?? 0) + (cluster.created ?? 0),
+          skipped: (totals.steps!.cluster?.skipped ?? 0) + (cluster.skipped ?? 0),
+        };
+        totals.steps!.timeline = {
+          issuesUpdated:
+            (totals.steps!.timeline?.issuesUpdated ?? 0) + (timeline.issuesUpdated ?? 0),
+          eventsWritten:
+            (totals.steps!.timeline?.eventsWritten ?? 0) + (timeline.eventsWritten ?? 0),
+        };
+        if (data.usage) {
+          totals.usage = {
+            calls: totals.usage!.calls + data.usage.calls,
+            inputTokens: totals.usage!.inputTokens + data.usage.inputTokens,
+            outputTokens: totals.usage!.outputTokens + data.usage.outputTokens,
+            model: data.usage.model,
+            costUsd: Number((totals.usage!.costUsd + data.usage.costUsd).toFixed(6)),
+          };
+        }
+        totals.errors = [...(totals.errors ?? []), ...(data.errors ?? [])];
+        totals.ok = totals.ok && data.ok;
+
+        setResult({ ...totals });
+
+        // 더 분석할 기사가 없으면 멈춘다.
+        const remaining = await fetchPipelineStatus();
+        if (remaining.pendingArticles === 0) break;
+      }
+
+      setProgress((current) => (current ? { ...current, done: true } : null));
+      return totals;
+    },
+    onSuccess: () => {
       try {
         localStorage.setItem(KEY_STORAGE, adminKey.trim());
       } catch {
@@ -128,6 +188,7 @@ export default function RunAnalysis() {
           disabled={!adminKey.trim() || run.isPending}
           onClick={() => {
             setResult(null);
+            setProgress(null);
             run.mutate();
           }}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
@@ -135,7 +196,8 @@ export default function RunAnalysis() {
           {run.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              분석 중… 1~2분 걸립니다
+              분석 중… {progress ? `${progress.round}회차` : ""} (밀린 기사가 많으면
+              여러 번 이어서 돕니다)
             </>
           ) : (
             <>
@@ -162,6 +224,9 @@ export default function RunAnalysis() {
             </p>
             <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
               <li>기사 {cluster?.processed ?? 0}건 분석</li>
+              {Boolean(cluster?.tooOld) && (
+                <li>오래된 기사 {cluster?.tooOld}건은 건너뜀 (48시간 지남)</li>
+              )}
               <li>새 이슈 {cluster?.created ?? 0}개 생성</li>
               <li>기존 이슈에 {cluster?.assigned ?? 0}건 추가</li>
               <li>시간대 요약 {timeline?.eventsWritten ?? 0}개 작성</li>
@@ -228,10 +293,11 @@ export default function RunAnalysis() {
           </div>
         )}
 
-        {status && status.pendingArticles > 200 && (
+        {status && status.pendingArticles > 0 && !run.isPending && (
           <p className="mt-4 text-xs text-muted-foreground">
-            대기 기사가 200건을 넘습니다. 한 번에 200건씩 처리하니, 다 비우려면
-            버튼을 여러 번 눌러주세요.
+            버튼을 한 번 누르면 대기 기사가 없어질 때까지 이어서 돕니다.
+            요금이 한꺼번에 나가지 않도록 최대 {MAX_ROUNDS}회까지만 돌고 멈춥니다.
+            48시간이 지난 기사는 분석하지 않고 대기열에서 뺍니다.
           </p>
         )}
       </main>
