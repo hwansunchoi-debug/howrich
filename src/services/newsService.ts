@@ -9,10 +9,28 @@ import type {
 } from "@/types/news";
 
 const ISSUE_COLUMNS =
-  "id, title, emoji, description, issue_score, article_count, recent_article_count, last_hour_count, prev_hour_count, trend, last_article_at, created_at, updated_at";
+  "id, title, emoji, description, issue_score, article_count, publisher_count, recent_article_count, last_hour_count, prev_hour_count, trend, last_article_at, created_at, updated_at";
+
+/**
+ * 이슈로 인정하는 최소 언론사 수.
+ * 한 곳만 단발로 쓴 기사는 "지금 대한민국의 이슈"라고 보기 어렵다.
+ * 여러 언론사가 같은 사건을 다룰 때 비로소 이슈로 본다.
+ */
+export const MIN_PUBLISHERS_FOR_ISSUE = 2;
+
+/** 언론사 수 기준으로 이슈를 나눈다. */
+export function splitIssuesByCoverage(issues: NewsIssue[]) {
+  const confirmed = issues.filter(
+    (issue) => issue.publisher_count >= MIN_PUBLISHERS_FOR_ISSUE,
+  );
+  const watching = issues.filter(
+    (issue) => issue.publisher_count < MIN_PUBLISHERS_FOR_ISSUE,
+  );
+  return { confirmed, watching };
+}
 
 /** 지금 이슈가 되고 있는 순서대로 이슈 목록을 가져온다. */
-export async function fetchTopIssues(limit = 20): Promise<NewsIssue[]> {
+export async function fetchTopIssues(limit = 60): Promise<NewsIssue[]> {
   // 항상 20개를 채워 보여준다. 오래된 이슈는 최신성 점수가 떨어져
   // 자연스럽게 뒤로 밀리므로 시간 조건을 따로 걸지 않는다.
   const { data, error } = await supabase

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { AlertCircle, RefreshCw, Star } from "lucide-react";
@@ -11,13 +12,18 @@ import { SourceList } from "@/components/news/SourceList";
 import { useFollowedIssues } from "@/hooks/useFollowedIssues";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { fetchIssuesByIds, fetchTopIssues } from "@/services/newsService";
+import {
+  fetchIssuesByIds,
+  fetchTopIssues,
+  splitIssuesByCoverage,
+} from "@/services/newsService";
 import { formatFullDateTime } from "@/lib/newsTime";
 
 const REFRESH_INTERVAL_MS = 60_000;
 
 export default function NewsHome() {
   const { followedIds, toggleFollow, isFollowed } = useFollowedIssues();
+  const [showWatching, setShowWatching] = useState(false);
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -43,7 +49,7 @@ export default function NewsHome() {
   const { data, isLoading, isError, error, refetch, isFetching, dataUpdatedAt } =
     useQuery({
       queryKey: ["news", "issues"],
-      queryFn: () => fetchTopIssues(20),
+      queryFn: () => fetchTopIssues(60),
       refetchInterval: REFRESH_INTERVAL_MS,
       staleTime: 30_000,
     });
@@ -58,7 +64,11 @@ export default function NewsHome() {
   });
 
   const MAX_VISIBLE_ISSUES = 20;
-  const issues = data ?? [];
+  const allIssues = data ?? [];
+
+  // 여러 언론사가 다룬 것만 이슈로 본다. 한 곳만 쓴 것은 "관찰 중"으로 둔다.
+  const { confirmed, watching } = splitIssuesByCoverage(allIssues);
+  const issues = (showWatching ? allIssues : confirmed).slice(0, MAX_VISIBLE_ISSUES);
 
   // 화면이 데이터를 받아온 시각이 아니라, 서버가 순위를 계산한 시각을 보여준다.
   // 점수는 기사를 수집할 때마다(15분 간격) 한꺼번에 다시 계산된다.
@@ -117,6 +127,26 @@ export default function NewsHome() {
         </p>
 
         <SourceList />
+
+        {watching.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowWatching((value) => !value)}
+            className="mb-4 w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {showWatching ? (
+              <>한 언론사만 보도한 이슈를 함께 보고 있습니다 · 숨기기</>
+            ) : (
+              <>
+                한 언론사만 보도한 이슈{" "}
+                <span className="font-medium text-foreground/80">
+                  {watching.length}개
+                </span>
+                를 숨겼습니다 · 보기
+              </>
+            )}
+          </button>
+        )}
 
         <div className="flex gap-5">
           <div
