@@ -7,6 +7,7 @@ export interface NewsIssue {
   description: string | null;
   issue_score: number;
   article_count: number;
+  publisher_count: number;
   recent_article_count: number;
   last_hour_count: number;
   prev_hour_count: number;

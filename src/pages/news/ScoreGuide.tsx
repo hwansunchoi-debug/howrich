@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertCircle, ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchTopIssues } from "@/services/newsService";
+import { fetchTopIssues, splitIssuesByCoverage } from "@/services/newsService";
 import { formatRelative } from "@/lib/newsTime";
 import { issueEmoji } from "@/lib/issueEmoji";
 import { SCORE_PARTS, scoreBreakdown } from "@/lib/issueScore";
@@ -13,15 +13,17 @@ export default function ScoreGuide() {
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["news", "issues"],
-    queryFn: () => fetchTopIssues(20),
+    queryFn: () => fetchTopIssues(60),
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
 
-  const rows = (data ?? []).map((issue) => ({
+  const rows = splitIssuesByCoverage(data ?? [])
+    .confirmed.slice(0, 20)
+    .map((issue) => ({
     issue,
-    parts: scoreBreakdown(issue),
-  }));
+      parts: scoreBreakdown(issue),
+    }));
 
   // 막대 길이는 가장 높은 점수를 기준으로 맞춘다.
   const maxTotal = Math.max(
@@ -54,6 +56,23 @@ export default function ScoreGuide() {
           세 가지를 더해서 순위를 매깁니다. 많이 보도됐는지, 지금 갑자기 늘고 있는지,
           소식이 얼마나 최근인지입니다.
         </p>
+
+        <div className="mt-4 rounded-xl border border-border bg-muted/40 p-4">
+          <h2 className="text-sm font-semibold text-foreground">
+            무엇을 이슈로 보나요
+          </h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            <b className="font-medium text-foreground/80">
+              서로 다른 언론사 2곳 이상이 다룬 사건
+            </b>
+            만 목록에 올립니다. 한 곳이 단발로 쓴 기사는 &ldquo;관찰 중&rdquo;으로
+            두고, 다른 언론사가 받아쓰면 그때 목록에 들어옵니다.
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            AI 도 기사를 묶을 때 광고·부고·인사·시황·행사 안내·개별 기업 홍보·연예
+            가십·칼럼처럼 사건이 아닌 글은 제외합니다.
+          </p>
+        </div>
 
         {/* 세 가지 요소 설명 */}
         <div className="mt-5 space-y-3">
